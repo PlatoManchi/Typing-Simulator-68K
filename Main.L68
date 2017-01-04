@@ -1,0 +1,2433 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 10/31/2016 2:18:21 PM
+
+00000000                             1  *----------------------------------------vl-------------------
+00000000                             2  * Title      : Main
+00000000                             3  * Written by : Plato Manchi
+00000000                             4  * Date       :
+00000000                             5  * Description: Main program
+00000000                             6  *-----------------------------------------------------------
+00001000                             7      ORG    $1000
+00001000                             8      
+00001000                             9  
+00001000                            10  START:                  ; first instruction of program
+00001000                            11  
+00001000                            12  * Put program code here
+00001000                            13  
+00001000  103C 0021                 14      move.b      #SET_SCREEN_SIZE, d0
+00001004  223C 06400384             15      move.l      #1600*$10000+900, d1        Set screen to 1600 x 900
+0000100A  4E4F                      16      trap        #15
+0000100C                            17  
+0000100C  103C 0021                 18      move.b      #SET_SCREEN_SIZE, d0
+00001010  7202                      19      move.l      #2, d1        Set screen to 1600 x 900
+00001012  4E4F                      20      trap        #15
+00001014                            21  
+00001014                            22      * enabling double buffer
+00001014  203C 0000005C             23      move.l      #ENABLE_DOUBLE_BUFFER, d0
+0000101A  7211                      24      move.l      #17, d1
+0000101C  4E4F                      25      trap        #15                     ; calling trap to enable double buffer
+0000101E                            26  
+0000101E  41F9 00001E97             27      lea         LoadingStr, a0
+00001024  2F08                      28      move.l      a0, -(sp)     ; number
+00001026  2F3C 00E4F5E8             29      move.l      #$00e4f5e8, -(sp)     ; color
+0000102C  2F3C 000001AE             30      move.l      #430, -(sp)       ; screen y
+00001032  2F3C 000002BC             31      move.l      #700, -(sp)       ; screen x
+00001038  4EB9 000014E8             32      jsr         DrawString
+0000103E  DFFC 00000010             33      add.l       #16, sp          ; deleting data used by subroutine to avoid memory leak
+00001044                            34      
+00001044  203C 0000005E             35      move.l  #SWAP_BUFFER,d0
+0000104A  4E4F                      36      trap    #15
+0000104C                            37      
+0000104C                            38      * Order in which stack contains information is
+0000104C                            39      * x - Position on screen (long)
+0000104C                            40      * y - Position on screen (long)
+0000104C                            41      * Chunk_X - Position from which image should be drawn
+0000104C                            42      * Chunk_Y - Position from which image should be drawn
+0000104C                            43      * Chunk_Width - Width of image part to be drawn
+0000104C                            44      * Chunk_Height - Height of image part to be drawn
+0000104C                            45      * EndOfBitmapFile - contains the ending address of bitmap
+0000104C                            46      * Since stack is first in last out the data has to be pushed in reverse order
+0000104C  2F3C 00161BDC             47      move.l      #EndOfBGSpriteFile, -(sp)
+00001052  2F3C 00001EA4             48      move.l      #BGSpriteFile, -(sp)
+00001058  2F3C 00000384             49      move.l      #900, -(sp)     ; chunk_height is 128
+0000105E  2F3C 00000640             50      move.l      #1600, -(sp)     ; chunk_width is 128
+00001064  2F3C 00000000             51      move.l      #0, -(sp)       ; chunk_y
+0000106A  2F3C 00000000             52      move.l      #0, -(sp)       ; chunk_x
+00001070  2F3C 00000000             53      move.l      #0, -(sp)       ; screen y
+00001076  2F3C 00000000             54      move.l      #0, -(sp)       ; screen xprite
+0000107C  4EB9 0000158A             55      jsr drawSprite              ; calling subroutine to draw s
+00001082  DFFC 00000020             56      add.l      #32, sp          ; deleting data used by subroutine to avoid memory leak
+00001088                            57      
+00001088                            58  
+00001088  4EB9 000011BC             59      jsr         seedRandomNumber
+0000108E                            60      
+0000108E  4EB9 00001DB0             61      jsr         InitTimer
+00001094  4EB9 00162BAA             62      jsr         InitChallengeWords
+0000109A  4EB9 0016279A             63      jsr         UpdateLevelIndicator
+000010A0                            64      
+000010A0                            65      
+000010A0                            66      *-------- opening sound
+000010A0  43F9 00001DE2             67      lea         OpeningBG, a1
+000010A6  203C 00000049             68      move.l      #PLAY_SOUND, d0
+000010AC  4E4F                      69      trap        #15
+000010AE                            70      
+000010AE                            71  GameLoop:
+000010AE                            72  
+000010AE                            73      * process input
+000010AE  4EB9 00162FB2             74      jsr         ProcessInput 
+000010B4                            75      
+000010B4                            76      * clear screen
+000010B4  4EB9 0016282A             77      jsr         ClearComputerScreen
+000010BA                            78      
+000010BA  4EB9 00162DB2             79      jsr         UpdateUserInput
+000010C0                            80      * Draw UserInput
+000010C0  4EB9 00162E96             81      jsr         DrawHealth
+000010C6  4EB9 00162F24             82      jsr         DrawScore
+000010CC  4EB9 00162E3E             83      jsr         DrawUserInput
+000010D2                            84      
+000010D2                            85  
+000010D2                            86      
+000010D2  4EB9 00001DC2             87      jsr         UpdateTimer
+000010D8                            88      
+000010D8                            89      
+000010D8                            90      * draw only necessary
+000010D8  0CB9 00000000 0016278A    91      cmp.l       #MAIN_MENU_SCREEN, GameState
+000010E2  6700 001E                 92      beq         .menuScreen
+000010E6                            93      
+000010E6  0CB9 00000001 0016278A    94      cmp.l       #GAME_SCREEN, GameState
+000010F0  6700 001C                 95      beq         .game
+000010F4                            96      
+000010F4  0CB9 00000002 0016278A    97      cmp.l       #GAME_OVER_SCREEN, GameState
+000010FE  6700 0026                 98      beq         .gameoverScreen
+00001102                            99      
+00001102                           100  .menuScreen
+00001102  4EB9 0016285A            101      jsr         MainMenu
+00001108  4EF9 0000112C            102      jmp         .endofscreens
+0000110E                           103  .game
+0000110E  4EB9 00162C28            104      jsr         DrawChallengeWords
+00001114                           105      * updating challenge positions
+00001114  4EB9 00162B2C            106      jsr         UpdateChallengeLevel
+0000111A  4EB9 00162C8A            107      jsr         UpdateChallengeWords
+00001120                           108      
+00001120  4EF9 0000112C            109      jmp         .endofscreens
+00001126                           110  .gameoverScreen
+00001126  4EB9 00162980            111      jsr         GameOverScreen
+0000112C                           112  .endofscreens
+0000112C                           113      
+0000112C                           114      * drawing on screen using double buffer
+0000112C  203C 0000005E            115      move.l      #SWAP_BUFFER, d0
+00001132  4E4F                     116      trap        #15
+00001134                           117      
+00001134  6000 FF78                118      bra         GameLoop
+00001138                           119      
+00001138  103C 0009                120      move.b  #EXIT_SIMULATOR,d0
+0000113C  4E4F                     121      trap    #15
+0000113E                           122          
+0000113E  FFFF FFFF                123      SIMHALT             ; halt simulator
+00001142                           124  
+00001142                           125      * includes
+00001142                           126      INCLUDE "Common.X68"
+00001142                           127  
+00001142                           128  ALL_REGISTERS REG D0-D7/A0-A6
+00001142                           129  
+00001142  =00000009                130  EXIT_SIMULATOR          EQU     9
+00001142  =00000013                131  GET_USER_INPUT_COMMAND  EQU     19
+00001142  =00000021                132  SET_SCREEN_SIZE         EQU     33
+00001142  =00000049                133  PLAY_SOUND              EQU     73
+00001142  =00000050                134  SET_PEN_COLOR           EQU     80
+00001142  =00000051                135  SET_FILL_COLOR          EQU     81
+00001142  =00000057                136  DRAW_RECT               EQU     87
+00001142  =0000005C                137  ENABLE_DOUBLE_BUFFER    EQU     92
+00001142  =0000005E                138  SWAP_BUFFER             EQU     94
+00001142                           139  
+00001142  =00000008                140  SYSTEM_TIME             EQU     8
+00001142                           141  
+00001142  =00000008                142  BACKSPACE_KEYCODE       EQU     $8
+00001142  =0000000D                143  ENTER_KEYCODE           EQU     $D
+00001142  =00000041                144  A_KEYCODE               EQU     $41
+00001142  =0000005A                145  Z_KEYCODE               EQU     $5A
+00001142                           146  
+00001142                           147  
+00001142  =00000006                148  FRAC_BITS               EQU     6
+00001142                           149  
+00001142  =00000014                150  MAX_WORDS_ON_SCREEN     EQU     20
+00001142  =00000001                151  INITIAL_SPEED           EQU     1
+00001142  =0003C000                152  INITIAL_WORD_Y          EQU     60<<FRAC_BITS<<FRAC_BITS
+00001142  =0026C000                153  ENDING_WORD_Y           EQU     620<<FRAC_BITS<<FRAC_BITS
+00001142  =0000012C                154  STARTING_WORD_X         EQU     300
+00001142  =0000000A                155  INITIAL_HEALTH          EQU     10
+00001142                           156  
+00001142  =00000043                157  LEVEL_INDICATOR_X       EQU     67
+00001142  =0000026C                158  LEVEL_INDICATOR_Y       EQU     620
+00001142                           159  
+00001142  =00000000                160  MAIN_MENU_SCREEN        EQU     0
+00001142  =00000001                161  GAME_SCREEN             EQU     1
+00001142  =00000002                162  GAME_OVER_SCREEN        EQU     2
+00001142                           163  
+00001142  =00000258                164  TITLE_BG_X1             EQU     600
+00001142  =000000FA                165  TITLE_BG_Y1             EQU     250
+00001142  =00000410                166  TITLE_BG_X2             EQU     1040
+00001142  =0000015E                167  TITLE_BG_Y2             EQU     350
+00001142                           168  
+00001142  =00000267                169  TITLE_LABEL_X           EQU     615
+00001142  =0000011C                170  TITLE_LABEL_Y           EQU     284
+00001142                           171  
+00001142  =000001D6                172  TUTORIAL_TEXT_X         EQU     470
+00001142  =000001F4                173  TUTORIAl_TEXT_Y         EQU     500
+00001142                           174  
+00001142  =0000026C                175  GO_SCORE_BG_X1          EQU     620
+00001142  =000000FA                176  GO_SCORE_BG_Y1          EQU     250
+00001142  =000003E8                177  GO_SCORE_BG_X2          EQU     1000
+00001142  =0000015E                178  GO_SCORE_BG_Y2          EQU     350
+00001142                           179  
+00001142  =0000027B                180  GO_SCORE_LABEL_X        EQU     635
+00001142  =0000011C                181  GO_SCORE_LABEL_Y        EQU     284
+00001142                           182  
+00001142  =00000384                183  GO_SCORE_NUMBER_X       EQU     900
+00001142  =0000011C                184  GO_SCORE_NUMBER_Y       EQU     284
+00001142                           185  
+00001142  =000001F4                186  RESTART_LABEL_X         EQU     500
+00001142  =000001F4                187  RESTART_LABEL_Y         EQU     500
+00001142                           188  
+00001142  =00000244                189  EXIT_LABEL_X            EQU     580
+00001142  =0000023A                190  EXIT_LABEL_Y            EQU     570
+00001142  =00FAF81A                191  USER_INPUT_COLOR        EQU     $00faf81a
+00001142  =00005EFF                192  USER_INPUT_ERROR        EQU     $00005eff
+00001142  =004CCC1D                193  USER_INPUT_CORRECT      EQU     $004ccc1d
+00001142                           194  
+00001142                           195  
+00001142                           196  
+00001142                           197  StringLength
+00001142  4284                     198      clr.l       d4      ; clearing the counter
+00001144                           199  .LengthLoop
+00001144  0C1E 0000                200      cmpi.b       #0, (a6)+
+00001148  6700 0008                201      beq         .ReturnBack
+0000114C  5284                     202      addi.l      #1, d4
+0000114E                           203  
+0000114E  4EF8 1144                204      jmp         .LengthLoop
+00001152                           205  
+00001152                           206  .ReturnBack
+00001152  4E75                     207      rts
+00001154                           208  
+00001154                           209  
+00001154                           210  StringCompare
+00001154  48E7 7FFE                211      movem.l     d1-d7/a0-a6, -(sp)
+00001158                           212      
+00001158  2A6F 003C                213      move.l      60(sp), a5
+0000115C                           214      
+0000115C  2C6F 0040                215      move.l      64(sp), a6
+00001160                           216      
+00001160  7001                     217      move.l      #1, d0
+00001162  7200                     218      move.l      #0, d1
+00001164  4282                     219      clr.l       d2
+00001166                           220  .compareLoop
+00001166  1436 1000                221      move.b      (a6, d1), d2
+0000116A  B435 1000                222      cmp.b       (a5, d1), d2
+0000116E  6600 0010                223      bne         .notEqual
+00001172                           224      
+00001172  0C02 0000                225      cmpi.b      #0, d2
+00001176  6700 0010                226      beq         .returnBack    
+0000117A                           227      
+0000117A  5281                     228      addi.l      #1, d1
+0000117C  4EF8 1166                229      jmp         .compareLoop
+00001180                           230  .notEqual
+00001180  7000                     231      move.l      #0, d0
+00001182  4EF9 00001188            232      jmp         .returnBack    
+00001188                           233      
+00001188                           234  .returnBack
+00001188                           235      
+00001188  4CDF 7FFE                236      movem.l     (sp)+, d1-d7/a0-a6
+0000118C  4E75                     237      rts
+0000118E                           238  
+0000118E                           239  
+0000118E                           240  GetNthWord
+0000118E  48E7 8000                241      movem.l     d0, -(sp)
+00001192  206F 0008                242      move.l      8(sp), a0       ; getting starting address of word array
+00001196  202F 000C                243      move.l      12(sp), d0       ; getting the n value
+0000119A  6700 0012                244      beq         .returnBack     ; if n=0 return the starting address of array
+0000119E  4281                     245      clr.l       d1
+000011A0                           246  .parsingLoop
+000011A0  0C18 0000                247      cmpi.b      #0, (a0)+
+000011A4  6600 0004                248      bne         .skipIncrementCounter
+000011A8  5281                     249      addi.l      #1, d1
+000011AA                           250  .skipIncrementCounter
+000011AA  B280                     251      cmp.l      d0, d1
+000011AC  66F2                     252      bne         .parsingLoop
+000011AE                           253  .returnBack    
+000011AE                           254      ;sub.l       #2, a0
+000011AE  4CDF 0001                255      movem.l     (sp)+, d0
+000011B2  4E75                     256      rts
+000011B4                           257  
+000011B4                           258  
+000011B4                           259  RANDOMVAL       ds.l    1
+000011B8                           260  TEMPRANDOMLONG  ds.l    1
+000011BC                           261  
+000011BC                           262  seedRandomNumber
+000011BC  48E7 FFFE                263          movem.l ALL_REGISTERS,-(sp)
+000011C0  4286                     264          clr.l   d6
+000011C2  103C 0008                265          move.b  #SYSTEM_TIME,d0
+000011C6  4E4F                     266          TRAP    #15
+000011C8                           267  
+000011C8  21C1 11B4                268          move.l  d1,RANDOMVAL
+000011CC  4CDF 7FFF                269          movem.l (sp)+,ALL_REGISTERS
+000011D0  4E75                     270          rts
+000011D2                           271  
+000011D2                           272  getRandomByteIntoD6
+000011D2  48E7 8000                273          movem.l d0,-(sp)
+000011D6  48E7 4000                274          movem.l d1,-(sp)
+000011DA  48E7 2000                275          movem.l d2,-(sp)
+000011DE  2038 11B4                276          move.l  RANDOMVAL,d0
+000011E2  72AF                     277          moveq   #$AF-$100,d1
+000011E4  7412                     278          moveq   #18,d2
+000011E6                           279  Ninc0   
+000011E6  D080                     280      add.l   d0,d0
+000011E8  6400 0004                281      bcc Ninc1
+000011EC  B300                     282      eor.b   d1,d0
+000011EE                           283  Ninc1
+000011EE  51CA FFF6                284      dbf d2,Ninc0
+000011F2                           285      
+000011F2  21C0 11B4                286      move.l  d0,RANDOMVAL
+000011F6  4286                     287      clr.l   d6
+000011F8  1C00                     288      move.b  d0,d6
+000011FA                           289      
+000011FA  4CDF 0004                290          movem.l (sp)+,d2
+000011FE  4CDF 0002                291          movem.l (sp)+,d1
+00001202  4CDF 0001                292          movem.l (sp)+,d0
+00001206  4E75                     293          rts
+00001208                           294          
+00001208                           295  
+00001208                           296  getRandomLongIntoD6
+00001208  48E7 FFFE                297          movem.l ALL_REGISTERS,-(sp)
+0000120C  4EB8 11D2                298          jsr     getRandomByteIntoD6
+00001210  1A06                     299          move.b  d6,d5
+00001212  4EB8 11D2                300          jsr     getRandomByteIntoD6
+00001216  E18D                     301          lsl.l   #8,d5
+00001218  1A06                     302          move.b  d6,d5
+0000121A  4EB8 11D2                303          jsr     getRandomByteIntoD6
+0000121E  E18D                     304          lsl.l   #8,d5
+00001220  1A06                     305          move.b  d6,d5
+00001222  4EB8 11D2                306          jsr     getRandomByteIntoD6
+00001226  E18D                     307          lsl.l   #8,d5
+00001228  1A06                     308          move.b  d6,d5
+0000122A  21C5 11B8                309          move.l  d5,TEMPRANDOMLONG
+0000122E  4CDF 7FFF                310          movem.l (sp)+,ALL_REGISTERS
+00001232  2C38 11B8                311          move.l  TEMPRANDOMLONG,d6
+00001236  4E75                     312          rts
+00001238                           313  
+00001238                           314  
+00001238                           315  
+00001238                           316  
+00001238                           317  -------------------- end include --------------------
+00001238                           318      INCLUDE "7SegmentLED.X68"
+00001238                           319  
+00001238  =00000003                320  LED_OFFSET          EQU     3
+00001238  =0000000F                321  LED_SIZE            EQU     15
+00001238  =00000006                322  LED_LINE_SPACING    EQU     6
+00001238                           323  
+00001238  =00000040                324  STACK_SCREEN_X      EQU     64
+00001238  =00000044                325  STACK_SCREEN_Y      EQU     68
+00001238  =00000048                326  STACK_COLOR         EQU     72
+00001238  =0000004C                327  STACK_NUMBER        EQU     76
+00001238  =00000050                328  STACK_LENGTH        EQU     80
+00001238                           329  
+00001238= 0000003F 00000006 ...    330  DigitalMaskValues       dc.l    $3F, $06, $5B, $4F, $66, $6D, $7D, $07, $7F, $67
+00001260                           331  
+00001260= 00000003 0000000F ...    332  LED_POSITION_X1         dc.l    LED_OFFSET,             LED_SIZE,               LED_SIZE,                   (LED_SIZE-LED_OFFSET),    0,                            0,                          LED_OFFSET
+0000127C= 00000000 00000003 ...    333  LED_POSITION_Y1         dc.l    0,                      LED_OFFSET,            (LED_SIZE+LED_OFFSET),       (2*LED_SIZE),             (LED_SIZE+LED_OFFSET),        LED_OFFSET,                 LED_SIZE
+00001298= 0000000C 0000000F ...    334  LED_POSITION_X2         dc.l    (LED_SIZE-LED_OFFSET),  LED_SIZE,               LED_SIZE,                   LED_OFFSET,               0,                            0,                          (LED_SIZE-LED_OFFSET)
+000012B4= 00000000 0000000C ...    335  LED_POSITION_Y2         dc.l    0,                     (LED_SIZE-LED_OFFSET),   ((2*LED_SIZE)-LED_OFFSET),  (2*LED_SIZE),             ((2*LED_SIZE)-LED_OFFSET),    (LED_SIZE-LED_OFFSET),      LED_SIZE
+000012D0                           336  
+000012D0                           337      
+000012D0                           338  DrawDigits
+000012D0                           339  
+000012D0  48E7 FFFE                340      movem.l     ALL_REGISTERS,-(sp)   ; making sure registers are not trashed
+000012D4  41F8 1238                341      lea         DigitalMaskValues, a0
+000012D8  43F8 1260                342      lea         LED_POSITION_X1, a1
+000012DC  45F8 127C                343      lea         LED_POSITION_Y1, a2
+000012E0  47F8 1298                344      lea         LED_POSITION_X2, a3
+000012E4  49F8 12B4                345      lea         LED_POSITION_Y2, a4
+000012E8                           346  
+000012E8  2E2F 004C                347      move.l      STACK_NUMBER(sp),d7
+000012EC  282F 0050                348      move.l      STACK_LENGTH(sp), d4                  ; number of digits to print
+000012F0                           349      
+000012F0  222F 0048                350      move.l      STACK_COLOR(sp), d1     ; setting pen color
+000012F4  7050                     351      move.l      #80, d0
+000012F6  4E4F                     352      trap        #15
+000012F8                           353      
+000012F8  7203                     354      move.l      #LED_OFFSET, d1         ; setting pen width
+000012FA  705D                     355      move.l      #93, d0
+000012FC  4E4F                     356      trap        #15
+000012FE                           357      
+000012FE                           358  ParseNumber    
+000012FE  2607                     359      move.l      d7, d3
+00001300  86FC 000A                360      divu.w      #10, d3
+00001304  4287                     361      clr.l       d7
+00001306  3E03                     362      move.w      d3, d7
+00001308  4843                     363      swap        d3
+0000130A  0283 0000FFFF            364      andi.l      #$0000FFFF, d3       ; removing higher bits to get remainder
+00001310  E58B                     365      lsl.l       #2, d3
+00001312  2630 3000                366      move.l      (a0, d3), d3
+00001316  4286                     367      clr.l       d6
+00001318                           368      
+00001318                           369  
+00001318                           370      
+00001318                           371  ParseMaskLoop
+00001318  E28B                     372      lsr.l       #1, d3           ; check if the right most bit is set or not
+0000131A  6438                     373      bcc.s       SkipDrawing      ; if carry flag is not set skip drawing
+0000131C                           374      
+0000131C                           375      * draw the segment
+0000131C  2A06                     376      move.l      d6, d5
+0000131E  E58D                     377      lsl.l       #2, d5
+00001320                           378      
+00001320  720F                     379      move.l      #LED_SIZE, d1
+00001322  5C81                     380      add.l       #LED_LINE_SPACING, d1
+00001324  C2C4                     381      mulu.w      d4, d1
+00001326  D2AF 0040                382      add.l       STACK_SCREEN_X(sp), d1      ; setting x1
+0000132A  D2B1 5000                383      add.l      (a1, d5), d1
+0000132E                           384      
+0000132E  242F 0044                385      move.l      STACK_SCREEN_Y(sp), d2
+00001332  D4B2 5000                386      add.l      (a2, d5), d2                 ; setting y1
+00001336                           387      
+00001336  7056                     388      move.l      #86, d0
+00001338  4E4F                     389      trap        #15
+0000133A                           390      
+0000133A  720F                     391      move.l      #LED_SIZE, d1
+0000133C  5C81                     392      add.l       #LED_LINE_SPACING, d1
+0000133E  C2C4                     393      mulu.w      d4, d1
+00001340  D2AF 0040                394      add.l       STACK_SCREEN_X(sp), d1      ; setting x1
+00001344  D2B3 5000                395      add.l      (a3, d5), d1
+00001348                           396      
+00001348  242F 0044                397      move.l      STACK_SCREEN_Y(sp), d2
+0000134C  D4B4 5000                398      add.l      (a4, d5), d2                ; setting y1
+00001350                           399      
+00001350  7055                     400      move.l      #85, d0
+00001352  4E4F                     401      trap        #15
+00001354                           402  SkipDrawing
+00001354  5286                     403      addi.l      #1, d6
+00001356  BCBC 00000008            404      cmp.l       #8, d6
+0000135C                           405      
+0000135C  66BA                     406      bne         ParseMaskLoop
+0000135E                           407      
+0000135E  5384                     408      subi.l      #1, d4
+00001360  669C                     409      bne         ParseNumber
+00001362                           410      
+00001362  4CDF 7FFF                411      movem.l     (sp)+,ALL_REGISTERS         ;loading data and address registers back
+00001366  4E75                     412      rts
+00001368                           413  
+00001368                           414  
+00001368                           415  
+00001368                           416  
+00001368                           417  -------------------- end include --------------------
+00001368                           418      INCLUDE "16SegmentLED.X68"
+00001368                           419  
+00001368                           420      * Put variables and constants here
+00001368  =00000002                421  LED_16_GAP             EQU 2
+00001368  =0000000A                422  LED_16_WIDTH           EQU 10
+00001368  =0000000F                423  LED_16_HEIGHT          EQU 15
+00001368  =00000006                424  LED_16_LINE_SPACING    EQU 6
+00001368                           425  
+00001368  =00000040                426  STACK_SCREEN_X      EQU 64
+00001368  =00000044                427  STACK_SCREEN_Y      EQU 68
+00001368  =00000048                428  STACK_COLOR         EQU 72
+00001368  =0000004C                429  STACK_NUMBER        EQU 76
+00001368                           430  
+00001368= 0000F3C0 0000FFC0 ...    431  DigitalAlphabetMaskValue        dc.l    $F3C0, $FFC0, $CF00, $0F0A, $CFC0, $C3C0, $DF40, $33C0, $CC30, $C430, $0386, $0F00, $330C, $330A, $FF00, $E3C0, $FF02, $E3C2, $DDC0, $C030, $3F00, $0305, $3F10, $000F, $001C, $CC05, $0C00, $0000
+000013D8                           432  
+000013D8= 00000000 00000002 ...    433  LED_16_POSITION_X1      dc.l    0, LED_16_GAP,                 (LED_16_WIDTH+LED_16_GAP),      (2*LED_16_WIDTH),           (2*LED_16_WIDTH),               (LED_16_WIDTH+LED_16_GAP),      LED_16_GAP                                            
+000013F4= 00000000 00000000 ...    434                          dc.l   0,                          0,                                   LED_16_GAP,                 (LED_16_WIDTH+LED_16_GAP),      LED_16_WIDTH,               LED_16_WIDTH
+0000140C= 00000002 0000000C ...    435                          dc.l   LED_16_GAP,                 (LED_16_WIDTH+LED_16_GAP),      (LED_16_WIDTH+LED_16_GAP),      LED_16_GAP
+0000141C                           436  
+0000141C                           437  
+0000141C= 00000000 00000000 ...    438  LED_16_POSITION_Y1      dc.l    0, 0,                          0,                              LED_16_GAP,                 (LED_16_HEIGHT+LED_16_GAP),     (2*LED_16_HEIGHT),              (2*LED_16_HEIGHT)
+00001438= 00000011 00000002 ...    439                          dc.l    (LED_16_HEIGHT+LED_16_GAP),     LED_16_GAP,                 LED_16_HEIGHT,              LED_16_HEIGHT,                  LED_16_GAP,                 (LED_16_HEIGHT+LED_16_GAP)
+00001450= 00000002 0000000D ...    440                          dc.l    LED_16_GAP,                 (LED_16_HEIGHT-LED_16_GAP),     (LED_16_HEIGHT+LED_16_GAP),     ((2*LED_16_HEIGHT)-LED_16_GAP)
+00001460                           441  
+00001460= 00000000 00000008 ...    442  LED_16_POSITION_X2      dc.l    0, (LED_16_WIDTH-LED_16_GAP),  ((2*LED_16_WIDTH)-LED_16_GAP),  (2*LED_16_WIDTH),           (2*LED_16_WIDTH),               ((2*LED_16_WIDTH)-LED_16_GAP),  (LED_16_WIDTH-LED_16_GAP)
+0000147C= 00000000 00000000 ...    443                          dc.l    0,                              0,                          (LED_16_WIDTH-LED_16_GAP),  ((2*LED_16_WIDTH)-LED_16_GAP),  LED_16_WIDTH,               LED_16_WIDTH
+00001494= 00000008 00000012 ...    444                          dc.l    (LED_16_WIDTH-LED_16_GAP),  ((2*LED_16_WIDTH)-LED_16_GAP),  ((2*LED_16_WIDTH)-LED_16_GAP),  (LED_16_WIDTH-LED_16_GAP)
+000014A4                           445  
+000014A4= 00000000 00000000 ...    446  LED_16_POSITION_Y2      dc.l    0, 0,                          0,                              (LED_16_HEIGHT-LED_16_GAP), ((2*LED_16_HEIGHT)-LED_16_GAP), (2*LED_16_HEIGHT),              (2*LED_16_HEIGHT)
+000014C0= 0000001C 0000000D ...    447                          dc.l    ((2*LED_16_HEIGHT)-LED_16_GAP), (LED_16_HEIGHT-LED_16_GAP), LED_16_HEIGHT,              LED_16_HEIGHT,                  (LED_16_HEIGHT-LED_16_GAP), ((2*LED_16_HEIGHT)-LED_16_GAP)
+000014D8= 0000000D 00000002 ...    448                          dc.l    (LED_16_HEIGHT-LED_16_GAP), LED_16_GAP,                     ((2*LED_16_HEIGHT)-LED_16_GAP), (LED_16_HEIGHT+LED_16_GAP)
+000014E8                           449  
+000014E8                           450  
+000014E8                           451  
+000014E8                           452  
+000014E8                           453  DrawString
+000014E8                           454  
+000014E8  48E7 FFFE                455      movem.l     ALL_REGISTERS,-(sp)   ; making sure registers are not trashed
+000014EC  41F8 1368                456      lea         DigitalAlphabetMaskValue, a0
+000014F0  43F8 13D8                457      lea         LED_16_POSITION_X1, a1
+000014F4  45F8 141C                458      lea         LED_16_POSITION_Y1, a2
+000014F8  47F8 1460                459      lea         LED_16_POSITION_X2, a3
+000014FC  49F8 14A4                460      lea         LED_16_POSITION_Y2, a4
+00001500                           461      
+00001500  2C6F 004C                462      move.l      STACK_NUMBER(sp),a6
+00001504  4EB8 1142                463      jsr         StringLength
+00001508                           464      
+00001508  5384                     465      subi.l      #1, d4
+0000150A                           466      ;move.l      STACK_NUMBER(sp),d7
+0000150A                           467      ;move.l      #1, d4                  ; allows three digit numbers
+0000150A                           468      
+0000150A  222F 0048                469      move.l      STACK_COLOR(sp), d1     ; setting pen color
+0000150E  7050                     470      move.l      #80, d0
+00001510  4E4F                     471      trap        #15
+00001512                           472      
+00001512  7203                     473      move.l      #$3, d1         ; setting pen width
+00001514  705D                     474      move.l      #93, d0
+00001516  4E4F                     475      trap        #15
+00001518  4287                     476      clr.l       d7                      ; clearing d7
+0000151A  2C6F 004C                477      move.l      STACK_NUMBER(sp),a6     ; string length trashes the a6 register, reloading a6
+0000151E                           478  ParseWord
+0000151E  1E36 4000                479      move.b      (a6, d4), d7
+00001522  0487 00000061            480      subi.l      #97, d7
+00001528  2607                     481      move.l      d7, d3
+0000152A                           482      ;divu.w      #26, d3             ; dividing my 26 because there are 26 letters
+0000152A                           483      ;clr.l       d7
+0000152A                           484      ;move.w      d3, d7
+0000152A                           485      ;swap        d3
+0000152A                           486      ;andi.l      #$0000FFFF, d3       ; removing higher bits to get remainder
+0000152A  E58B                     487      lsl.l       #2, d3
+0000152C  2630 3000                488      move.l      (a0, d3), d3
+00001530                           489  
+00001530                           490      
+00001530  7C10                     491      move.l      #16, d6                 ; loop counter to loop through 16 segments
+00001532                           492      
+00001532                           493  
+00001532                           494      
+00001532                           495  .ParseMaskLoop
+00001532  E28B                     496      lsr.l       #1, d3           ; check if the right most bit is set or not
+00001534  6440                     497      bcc.s       .SkipDrawing      ; if carry flag is not set skip drawing
+00001536                           498      
+00001536                           499      * draw the segment
+00001536  2A06                     500      move.l      d6, d5
+00001538  E58D                     501      lsl.l       #2, d5
+0000153A                           502      
+0000153A                           503      ;subi.l      #1, d4                      ; counter goes from 1 - nth number so substract 1 to offset
+0000153A                           504      
+0000153A  720A                     505      move.l      #LED_16_WIDTH, d1
+0000153C  E389                     506      lsl.l       #1, d1
+0000153E  5C81                     507      add.l       #LED_16_LINE_SPACING, d1
+00001540  C2C4                     508      mulu.w      d4, d1
+00001542  D2AF 0040                509      add.l       STACK_SCREEN_X(sp), d1      ; setting x1
+00001546  D2B1 5000                510      add.l      (a1, d5), d1
+0000154A                           511      
+0000154A  242F 0044                512      move.l      STACK_SCREEN_Y(sp), d2
+0000154E  D4B2 5000                513      add.l      (a2, d5), d2                 ; setting y1
+00001552                           514      
+00001552  7056                     515      move.l      #86, d0
+00001554  4E4F                     516      trap        #15
+00001556                           517      
+00001556  720A                     518      move.l      #LED_16_WIDTH, d1
+00001558  E389                     519      lsl.l       #1, d1
+0000155A  5C81                     520      add.l       #LED_16_LINE_SPACING, d1
+0000155C  C2C4                     521      mulu.w      d4, d1
+0000155E  D2AF 0040                522      add.l       STACK_SCREEN_X(sp), d1      ; setting x2
+00001562  D2B3 5000                523      add.l      (a3, d5), d1
+00001566                           524      
+00001566  242F 0044                525      move.l      STACK_SCREEN_Y(sp), d2
+0000156A  D4B4 5000                526      add.l      (a4, d5), d2                ; setting y2
+0000156E                           527      
+0000156E                           528      ;addi.l      #1, d4                      ; returning counter to its original position
+0000156E                           529      
+0000156E  7055                     530      move.l      #85, d0
+00001570  4E4F                     531      trap        #15
+00001572                           532      
+00001572  6000 0002                533      bra         .SkipDrawing
+00001576                           534      
+00001576                           535  .SkipDrawing
+00001576  5386                     536      subi.l      #1, d6
+00001578                           537      ;cmp.l       #16, d6
+00001578                           538      
+00001578  66B8                     539      bne         .ParseMaskLoop
+0000157A                           540  .ParseNextLetter
+0000157A  5384                     541      subi.l      #1, d4
+0000157C  B8BC 00000000            542      cmp.l       #0, d4
+00001582  6C9A                     543      bge         ParseWord
+00001584                           544      
+00001584                           545  .returnBack
+00001584  4CDF 7FFF                546      movem.l     (sp)+,ALL_REGISTERS         ;loading data and address registers back
+00001588  4E75                     547      rts
+0000158A                           548  
+0000158A                           549  
+0000158A                           550  
+0000158A                           551  
+0000158A                           552  
+0000158A                           553  
+0000158A                           554  
+0000158A                           555  
+0000158A                           556  
+0000158A                           557  
+0000158A                           558  
+0000158A                           559  
+0000158A                           560  -------------------- end include --------------------
+0000158A                           561      INCLUDE "SpriteRendering.X68"
+0000158A                           562  
+0000158A  =0000000E                563  OFFSET_TO_DIB_HEADER EQU $E
+0000158A  =00000012                564  OFFSET_TO_GET_IMAGE_WIDTH EQU $12
+0000158A  =00000016                565  OFFSET_TO_GET_IMAGE_HEIGHT EQU $16
+0000158A                           566  
+0000158A  =00000400                567  COLOR_TABLE_SIZE EQU 1024
+0000158A                           568  
+0000158A  =00000040                569  STACK_SCREEN_X EQU 64
+0000158A  =00000044                570  STACK_SCREEN_Y EQU 68
+0000158A  =00000048                571  STACK_CHUNK_X EQU 72
+0000158A  =0000004C                572  STACK_CHUNK_Y EQU 76
+0000158A  =00000050                573  STACK_CHUNK_WIDTH EQU 80
+0000158A  =00000054                574  STACK_CHUNK_HEIGHT EQU 84
+0000158A  =00000058                575  STACK_FILE_POINTER  EQU 88
+0000158A  =0000005C                576  STACK_EOF_POINTER EQU 92
+0000158A                           577  
+0000158A                           578  
+0000158A                           579  
+0000158A                           580  drawSprite
+0000158A                           581      
+0000158A                           582      
+0000158A  48E7 FFFE                583      movem.l     ALL_REGISTERS,-(sp)   ; saving data and address registers for future use
+0000158E                           584      
+0000158E                           585      * Legend of data containing in registers
+0000158E                           586      * a6 - start of file
+0000158E                           587      * a5 - start of color table
+0000158E                           588      * a4 - start of pixel data
+0000158E                           589      * a0 - end of file pointer
+0000158E                           590      
+0000158E                           591      * d7 - width of image
+0000158E                           592      * d6 - height of image
+0000158E                           593      * d5 - padding value
+0000158E                           594      
+0000158E  2C6F 0058                595      move.l      STACK_FILE_POINTER(sp), a6               ; getting the location of sprite file
+00001592  2E2E 000E                596      move.l      OFFSET_TO_DIB_HEADER(a6), d7    ; getting DIB Header size       
+00001596                           597      
+00001596                           598      * the value is in little endian format. converting it to big endian
+00001596  E15F                     599      rol.w       #$8, d7
+00001598  4847                     600      swap.w      d7
+0000159A  E15F                     601      rol.w       #$8, d7
+0000159C                           602      
+0000159C  206F 005C                603      move.l      STACK_EOF_POINTER(sp), a0       ; end of bitmap file
+000015A0                           604          
+000015A0                           605      * fetching the color palette location
+000015A0  DE8E                     606      add.l       a6, d7
+000015A2  0687 0000000E            607      add.l       #OFFSET_TO_DIB_HEADER, d7
+000015A8  2A47                     608      move.l      d7, a5                          ; start of color palette
+000015AA                           609      
+000015AA                           610      * this code takes 256 color palette bitmap and each color in pallet is stored as 4 bytes (00 BB GG RR) format
+000015AA                           611      * so the color table occupy 256 * 4 = 1024 bytes.
+000015AA                           612      * pixel data starts at a5 + 1024
+000015AA  203C 00000400            613      move.l      #COLOR_TABLE_SIZE, d0
+000015B0                           614      
+000015B0                           615      * fetching start of pixel data
+000015B0  284D                     616      move.l      a5, a4
+000015B2  D9C0                     617      add.l       d0, a4                              ; start of pixel data
+000015B4                           618      
+000015B4  2E2E 0012                619      move.l      OFFSET_TO_GET_IMAGE_WIDTH(a6), d7   ; contains image width
+000015B8                           620      * the value is in little endian
+000015B8  E15F                     621      rol.w       #$8, d7
+000015BA  4847                     622      swap.w      d7
+000015BC  E15F                     623      rol.w       #$8, d7
+000015BE                           624  
+000015BE  2C2F 0050                625      move.l      STACK_CHUNK_WIDTH(sp), d6           ; contains chunk width
+000015C2                           626      
+000015C2                           627  ;    clr.l       d5
+000015C2                           628  ;    move.l      STACK_CHUNK_X(sp), d0               ; getting chunk x
+000015C2                           629  ;    add.l       d6, d0
+000015C2                           630  ;    cmp.l       d6, d7
+000015C2                           631  ;    bgt         SkipSubstractionPadding ; if the chunk is not border condition padding is not needed
+000015C2                           632      
+000015C2                           633      * dividing image width by 4 and getting remainder
+000015C2  2A07                     634      move.l      d7, d5
+000015C4  8AFC 0004                635      divu.w      #$0004, d5
+000015C8  4245                     636      clr.w       d5
+000015CA  4845                     637      swap.w      d5
+000015CC                           638      
+000015CC                           639      * calculate padding if width is not a multiple of 4
+000015CC  6700 000A                640      beq         SkipSubstractionPadding
+000015D0  2805                     641      move.l      d5, d4
+000015D2  7A04                     642      move.l      #$4, d5
+000015D4  9A84                     643      sub.l       d4, d5
+000015D6  DE85                     644      add.l       d5, d7
+000015D8                           645  SkipSubstractionPadding
+000015D8                           646      
+000015D8                           647      
+000015D8                           648      * pixel(i,j) = (chunk_y + j) * (image_width + padding) + chunk_width + i
+000015D8                           649      * at this moment d7 has image width and d6 has chunk width
+000015D8  262F 0048                650      move.l      STACK_CHUNK_X(sp), d3
+000015DC  282F 004C                651      move.l      STACK_CHUNK_Y(sp), d4
+000015E0                           652        
+000015E0                           653      * d3 - chunk x
+000015E0                           654      * d4 - chunk y
+000015E0                           655      * d5 - padding
+000015E0                           656      * d6 - chunk width
+000015E0                           657      * d7 - image width
+000015E0                           658  
+000015E0                           659  VerticalLoop
+000015E0                           660  HorizontalLoop
+000015E0                           661      * formula to calculate the address of the pixel at i,j
+000015E0                           662      * pixel(i ,j) = (EOF - ((Image_Width + Padding)*(Chunk_Y + j))) + Chunk_X + i
+000015E0  2007                     663      move.l      d7, d0
+000015E2                           664  ;    add.l       d5, d0
+000015E2  2204                     665      move.l      d4, d1
+000015E4  D2AF 0054                666      add.l       STACK_CHUNK_HEIGHT(sp), d1
+000015E8  C0C1                     667      mulu.w      d1, d0
+000015EA  2248                     668      move.l      a0, a1
+000015EC  93C0                     669      sub.l       d0, a1
+000015EE  2203                     670      move.l      d3, d1
+000015F0  D286                     671      add.l       d6, d1
+000015F2                           672      ;sub.l       STACK_CHUNK_WIDTH(sp), d1
+000015F2  D3C1                     673      add.l       d1, a1                      ; calculate the address location of pixel data
+000015F4                           674      
+000015F4  4282                     675      clr.l       d2
+000015F6                           676  
+000015F6  1411                     677      move.b      (a1), d2                    ; fetching pixel value from pixel data
+000015F8  C4FC 0004                678      mulu.w      #$4, d2                     ; Since each color takes 4 bytes, multiply index with 4
+000015FC  2235 2000                679      move.l      (a5, d2), d1                ; looking up for color in color table and setting it as pen color
+00001600  E099                     680      ror.l       #8, d1                      ; color is in aa bb gg rr format
+00001602  7050                     681      move.l      #80, d0                     ; trap code to set the pen color to pixel color
+00001604  4E4F                     682      trap        #15
+00001606                           683      
+00001606  222F 0040                684      move.l      STACK_SCREEN_X(sp), d1
+0000160A  D286                     685      add.l       d6, d1                      ; calculating horizontal location on screen to draw pixel
+0000160C  242F 0044                686      move.l      STACK_SCREEN_Y(sp), d2
+00001610  D4AF 0054                687      add.l       STACK_CHUNK_HEIGHT(sp), d2  ; calculating vertical location on screen to draw pixel
+00001614  7052                     688      move.l      #82, d0      
+00001616  4E4F                     689      trap        #15                         ; draw pixel at location with pen color on screen
+00001618                           690  
+00001618  5386                     691      subi.l      #1, d6                      ; decrementing horizontal loop counter
+0000161A  66C4                     692      bne HorizontalLoop
+0000161C                           693  
+0000161C  2C2F 0050                694      move.l      STACK_CHUNK_WIDTH(sp), d6
+00001620                           695  
+00001620  53AF 0054                696      subi.l      #1, STACK_CHUNK_HEIGHT(sp)  ; decrementing vertical loop counter
+00001624  66BA                     697      bne VerticalLoop
+00001626                           698      
+00001626  4CDF 7FFF                699      movem.l     (sp)+,ALL_REGISTERS         ;loading data and address registers back
+0000162A                           700      
+0000162A                           701  
+0000162A                           702      
+0000162A  4E75                     703      rts
+0000162C                           704      
+0000162C                           705  
+0000162C                           706  
+0000162C                           707  
+0000162C                           708  
+0000162C                           709  
+0000162C                           710  
+0000162C                           711  
+0000162C                           712  
+0000162C                           713  
+0000162C                           714  
+0000162C                           715  
+0000162C                           716  
+0000162C                           717  
+0000162C                           718  -------------------- end include --------------------
+0000162C                           719      INCLUDE "WordDictionary.X68"
+0000162C                           720  
+0000162C= 6D 65 6D 6F 72 79 00     721  WORD_DICTIONARY                 dc.b            'memory',0
+00001633= 6D 65 61 6E 69 6E ...    722                                  dc.b            'meaning',0
+0000163B= 62 75 6C 6C 65 74 00     723                                  dc.b            'bullet',0
+00001642= 68 65 61 6C 74 68 00     724                                  dc.b            'health',0
+00001649= 70 72 65 64 69 63 ...    725                                  dc.b            'prediction',0
+00001654= 6E 6F 72 6D 00           726                                  dc.b            'norm',0
+00001659= 6D 65 6D 6F 72 69 ...    727                                  dc.b            'memorial',0
+00001662= 68 61 6E 64 79 00        728                                  dc.b            'handy',0
+00001668= 73 75 62 73 74 69 ...    729                                  dc.b            'substitute',0
+00001673= 61 62 73 65 6E 74 00     730                                  dc.b            'absent',0
+0000167A= 63 6F 61 6C 00           731                                  dc.b            'coal',0
+0000167F= 61 67 72 65 65 6D ...    732                                  dc.b            'agreement',0
+00001689= 65 6C 61 62 6F 72 ...    733                                  dc.b            'elaborate',0
+00001693= 70 72 65 73 69 64 ...    734                                  dc.b            'presidential',0
+000016A0= 65 78 70 65 63 74 00     735                                  dc.b            'expect',0
+000016A7= 77 69 73 65 63 72 ...    736                                  dc.b            'wisecrack',0
+000016B1= 65 6E 63 6F 75 72 ...    737                                  dc.b            'encourage',0
+000016BB= 61 72 65 6E 61 00        738                                  dc.b            'arena',0
+000016C1= 61 6E 67 6C 65 00        739                                  dc.b            'angle',0
+000016C7= 64 69 6E 6E 65 72 00     740                                  dc.b            'dinner',0
+000016CE= 64 69 6E 65 00           741                                  dc.b            'dine',0
+000016D3= 74 61 78 00              742                                  dc.b            'tax',0
+000016D7= 6D 6F 6D 65 6E 74 00     743                                  dc.b            'moment',0
+000016DE= 6C 69 76 65 00           744                                  dc.b            'live',0
+000016E3= 74 72 61 67 65 64 ...    745                                  dc.b            'tragedy',0
+000016EB= 62 69 6E 64 00           746                                  dc.b            'bind',0
+000016F0= 65 76 61 6C 75 61 ...    747                                  dc.b            'evaluate',0
+000016F9= 70 6C 65 61 73 75 ...    748                                  dc.b            'pleasure',0
+00001702= 73 65 70 61 72 61 ...    749                                  dc.b            'separation',0
+0000170D= 65 6C 65 6D 65 6E ...    750                                  dc.b            'element',0
+00001715= 63 61 72 62 6F 6E 00     751                                  dc.b            'carbon',0
+0000171C= 71 75 61 6C 69 66 ...    752                                  dc.b            'qualified',0
+00001726= 63 61 70 74 69 76 ...    753                                  dc.b            'captivate',0
+00001730= 62 61 73 69 6E 00        754                                  dc.b            'basin',0
+00001736= 61 6E 67 65 6C 00        755                                  dc.b            'angel',0
+0000173C= 73 68 69 76 65 72 00     756                                  dc.b            'shiver',0
+00001743= 68 6F 62 62 79 00        757                                  dc.b            'hobby',0
+00001749= 72 65 62 65 6C 00        758                                  dc.b            'rebel',0
+0000174F= 63 68 65 61 70 00        759                                  dc.b            'cheap',0
+00001755= 6E 6F 6D 69 6E 61 ...    760                                  dc.b            'nomination',0
+00001760= 65 78 65 63 75 74 ...    761                                  dc.b            'executive',0
+0000176A= 70 61 73 73 77 6F ...    762                                  dc.b            'password',0
+00001773= 62 65 61 72 00           763                                  dc.b            'bear',0
+00001778= 6B 69 6C 6C 00           764                                  dc.b            'kill',0
+0000177D= 75 73 65 00              765                                  dc.b            'use',0
+00001781= 64 65 6C 61 79 00        766                                  dc.b            'delay',0
+00001787= 66 6F 6C 64 00           767                                  dc.b            'fold',0
+0000178C= 6D 6F 6C 64 00           768                                  dc.b            'mold',0
+00001791= 63 75 72 74 61 69 ...    769                                  dc.b            'curtain',0
+00001799= 70 75 72 73 75 69 ...    770                                  dc.b            'pursuit',0
+000017A1= 70 61 73 74 00           771                                  dc.b            'past',0
+000017A6= 73 61 79 00              772                                  dc.b            'say',0
+000017AA= 73 63 72 69 70 74 00     773                                  dc.b            'script',0
+000017B1= 62 75 72 79 00           774                                  dc.b            'bury',0
+000017B6= 63 65 6E 74 65 72 00     775                                  dc.b            'center',0
+000017BD= 72 6F 77 00              776                                  dc.b            'row',0
+000017C1= 73 6F 6C 6F 00           777                                  dc.b            'solo',0
+000017C6= 64 69 73 63 6F 75 ...    778                                  dc.b            'discount',0
+000017CF= 65 78 74 65 6E 64 00     779                                  dc.b            'extend',0
+000017D6= 70 72 69 64 65 00        780                                  dc.b            'pride',0
+000017DC= 68 75 72 6C 00           781                                  dc.b            'hurl',0
+000017E1= 6C 61 75 6E 63 68 00     782                                  dc.b            'launch',0
+000017E8= 65 78 70 65 72 69 ...    783                                  dc.b            'experiment',0
+000017F3= 6F 72 67 61 6E 69 ...    784                                  dc.b            'organize',0
+000017FC= 76 69 64 65 6F 00        785                                  dc.b            'video',0
+00001802= 66 6F 72 67 65 74 00     786                                  dc.b            'forget',0
+00001809= 6D 75 64 00              787                                  dc.b            'mud',0
+0000180D= 72 65 73 69 64 65 ...    788                                  dc.b            'residence',0
+00001817= 61 75 74 68 6F 72 ...    789                                  dc.b            'authority',0
+00001821= 70 72 61 79 00           790                                  dc.b            'pray',0
+00001826= 62 61 6C 6C 6F 74 00     791                                  dc.b            'ballot',0
+0000182D= 74 65 63 68 6E 6F ...    792                                  dc.b            'technology',0
+00001838= 67 6C 75 65 00           793                                  dc.b            'glue',0
+0000183D= 63 72 79 00              794                                  dc.b            'cry',0
+00001841= 72 6F 74 61 74 65 00     795                                  dc.b            'rotate',0
+00001848= 66 61 75 6C 74 00        796                                  dc.b            'fault',0
+0000184E= 61 72 74 69 66 69 ...    797                                  dc.b            'artificial',0
+00001859= 72 61 62 62 69 74 00     798                                  dc.b            'rabbit',0
+00001860= 66 75 6C 6C 00           799                                  dc.b            'full',0
+00001865= 77 65 65 6B 00           800                                  dc.b            'week',0
+0000186A= 6C 65 63 74 75 72 ...    801                                  dc.b            'lecture',0
+00001872= 66 6F 75 6E 74 61 ...    802                                  dc.b            'fountain',0
+0000187B= 6A 75 72 69 73 64 ...    803                                  dc.b            'jurisdiction',0
+00001888= 6D 61 6E 00              804                                  dc.b            'man',0
+0000188C= 63 6F 6E 6E 65 63 ...    805                                  dc.b            'connection',0
+00001897= 6F 75 74 73 69 64 ...    806                                  dc.b            'outside',0
+0000189F= 74 65 72 6D 00           807                                  dc.b            'term',0
+000018A4= 63 68 75 72 63 68 00     808                                  dc.b            'church',0
+000018AB= 70 69 65 72 63 65 00     809                                  dc.b            'pierce',0
+000018B2= 63 69 76 69 6C 69 ...    810                                  dc.b            'civilian',0
+000018BB= 67 61 72 62 61 67 ...    811                                  dc.b            'garbage',0
+000018C3= 65 73 74 61 62 6C ...    812                                  dc.b            'established',0
+000018CF= 66 6F 72 65 73 74 ...    813                                  dc.b            'forestry',0
+000018D8= 73 68 65 65 70 00        814                                  dc.b            'sheep',0
+000018DE= 73 6C 6F 67 61 6E 00     815                                  dc.b            'slogan',0
+000018E5= 63 61 70 74 75 72 ...    816                                  dc.b            'capture',0
+000018ED= 68 6F 73 74 69 6C ...    817                                  dc.b            'hostile',0
+000018F5= 67 72 61 73 73 00        818                                  dc.b            'grass',0
+000018FB= 70 6C 61 74 6F 00        819                                  dc.b            'plato',0
+00001901= 73 74 61 6B 65 00        820                                  dc.b            'stake',0
+00001907= 62 65 61 75 74 69 ...    821                                  dc.b            'beautiful',0
+00001911= 70 72 6F 70 65 72 00     822                                  dc.b            'proper',0
+00001918= 6F 72 67 61 6E 00        823                                  dc.b            'organ',0
+0000191E= 74 69 67 68 74 00        824                                  dc.b            'tight',0
+00001924= 72 75 67 62 79 00        825                                  dc.b            'rugby',0
+0000192A= 66 61 72 65 00           826                                  dc.b            'fare',0
+0000192F= 74 65 73 74 69 66 ...    827                                  dc.b            'testify',0
+00001937= 6F 6D 69 73 73 69 ...    828                                  dc.b            'omission',0
+00001940= 62 75 72 73 74 00        829                                  dc.b            'burst',0
+00001946= 65 78 63 61 76 61 ...    830                                  dc.b            'excavation',0
+00001951= 72 6F 6F 74 00           831                                  dc.b            'root',0
+00001956= 65 78 70 6C 61 69 ...    832                                  dc.b            'explain',0
+0000195E= 62 65 68 61 76 69 ...    833                                  dc.b            'behavior',0
+00001967= 63 72 65 61 74 65 00     834                                  dc.b            'create',0
+0000196E= 61 63 63 75 72 61 ...    835                                  dc.b            'accurate',0
+00001977= 6D 61 63 68 69 6E ...    836                                  dc.b            'machinery',0
+00001981= 72 65 61 64 79 00        837                                  dc.b            'ready',0
+00001987= 73 65 6E 73 69 74 ...    838                                  dc.b            'sensitive',0
+00001991= 64 69 73 74 6F 72 ...    839                                  dc.b            'distortion',0
+0000199C= 62 75 74 74 6F 6E 00     840                                  dc.b            'button',0
+000019A3= 63 65 72 74 61 69 ...    841                                  dc.b            'certain',0
+000019AB= 74 6F 6F 6C 00           842                                  dc.b            'tool',0
+000019B0= 64 69 73 63 69 70 ...    843                                  dc.b            'discipline',0
+000019BB= 76 69 61 62 6C 65 00     844                                  dc.b            'viable',0
+000019C2= 73 74 69 6D 75 6C ...    845                                  dc.b            'stimulation',0
+000019CE= 72 61 6C 6C 79 00        846                                  dc.b            'rally',0
+000019D4= 72 65 6C 75 63 74 ...    847                                  dc.b            'reluctance',0
+000019DF= 74 61 6C 6B 61 74 ...    848                                  dc.b            'talkative',0
+000019E9= 73 6E 61 69 6C 00        849                                  dc.b            'snail',0
+000019EF= 70 6F 70 75 6C 61 ...    850                                  dc.b            'population',0
+000019FA= 63 61 72 00              851                                  dc.b            'car',0
+000019FE= 6D 69 6E 64 00           852                                  dc.b            'mind',0
+00001A03= 77 68 69 70 00           853                                  dc.b            'whip',0
+00001A08= 63 6F 6E 76 65 72 ...    854                                  dc.b            'conversation',0
+00001A15= 68 75 6D 61 6E 69 ...    855                                  dc.b            'humanity',0
+00001A1E= 6F 76 65 72 77 68 ...    856                                  dc.b            'overwhelm',0
+00001A28= 70 75 62 6C 69 73 ...    857                                  dc.b            'publish',0
+00001A30= 73 77 69 6E 67 00        858                                  dc.b            'swing',0
+00001A36= 62 61 74 74 65 72 ...    859                                  dc.b            'battery',0
+00001A3E= 6C 65 61 66 6C 65 ...    860                                  dc.b            'leaflet',0
+00001A46= 72 6F 79 61 6C 74 ...    861                                  dc.b            'royalty',0
+00001A4E= 74 68 65 73 69 73 00     862                                  dc.b            'thesis',0
+00001A55= 74 79 63 6F 6F 6E 00     863                                  dc.b            'tycoon',0
+00001A5C= 6C 6F 6F 74 69 6E ...    864                                  dc.b            'looting',0
+00001A64= 61 70 70 65 6E 64 ...    865                                  dc.b            'appendix',0
+00001A6D= 61 6C 61 72 6D 00        866                                  dc.b            'alarm',0
+00001A73= 66 72 61 67 6D 65 ...    867                                  dc.b            'fragment',0
+00001A7C= 67 6C 6F 77 00           868                                  dc.b            'glow',0
+00001A81= 66 6F 72 65 73 74 00     869                                  dc.b            'forest',0
+00001A88= 61 64 76 61 6E 74 ...    870                                  dc.b            'advantage',0
+00001A92= 6D 65 72 69 74 00        871                                  dc.b            'merit',0
+00001A98= 73 74 69 63 6B 79 00     872                                  dc.b            'sticky',0
+00001A9F= 70 65 64 61 6C 00        873                                  dc.b            'pedal',0
+00001AA5= 6D 61 72 61 74 68 ...    874                                  dc.b            'marathon',0
+00001AAE= 6B 6E 65 65 6C 00        875                                  dc.b            'kneel',0
+00001AB4= 72 65 73 70 65 63 ...    876                                  dc.b            'respectable',0
+00001AC0= 70 65 72 63 65 6E ...    877                                  dc.b            'percent',0
+00001AC8= 68 6F 73 74 61 67 ...    878                                  dc.b            'hostage',0
+00001AD0= 73 68 61 72 65 68 ...    879                                  dc.b            'shareholder',0
+00001ADC= 65 61 72 77 61 78 00     880                                  dc.b            'earwax',0
+00001AE3= 6C 6F 73 73 00           881                                  dc.b            'loss',0
+00001AE8= 64 61 72 6B 00           882                                  dc.b            'dark',0
+00001AED= 74 68 72 65 61 64 00     883                                  dc.b            'thread',0
+00001AF4= 70 61 72 6B 6F 72 00     884                                  dc.b            'parkor',0
+00001AFB= 64 65 63 61 79 00        885                                  dc.b            'decay',0
+00001B01= 64 75 6C 6C 00           886                                  dc.b            'dull',0
+00001B06= 73 61 63 72 65 64 00     887                                  dc.b            'sacred',0
+00001B0D= 72 69 6E 67 00           888                                  dc.b            'ring',0
+00001B12= 66 72 61 67 72 61 ...    889                                  dc.b            'fragrant',0
+00001B1B= 63 6F 70 65 00           890                                  dc.b            'cope',0
+00001B20= 6D 61 70 00              891                                  dc.b            'map',0
+00001B24= 61 6E 67 65 72 00        892                                  dc.b            'anger',0
+00001B2A= 66 6F 72 67 65 00        893                                  dc.b            'forge',0
+00001B30= 68 61 72 64 73 68 ...    894                                  dc.b            'hardship',0
+00001B39= 63 6F 6E 76 69 63 ...    895                                  dc.b            'convict',0
+00001B41= 61 73 73 65 74 00        896                                  dc.b            'asset',0
+00001B47= 6F 72 63 68 65 73 ...    897                                  dc.b            'orchestra',0
+00001B51= 68 61 6E 64 00           898                                  dc.b            'hand',0
+00001B56= 6D 75 6C 74 69 6D ...    899                                  dc.b            'multimedia',0
+00001B61= 69 64 65 61 6C 00        900                                  dc.b            'ideal',0
+00001B67= 73 69 63 6B 6E 65 ...    901                                  dc.b            'sickness',0
+00001B70= 62 72 61 69 64 00        902                                  dc.b            'braid',0
+00001B76= 73 74 72 61 74 65 ...    903                                  dc.b            'strategic',0
+00001B80= 70 6F 72 74 72 61 ...    904                                  dc.b            'portrait',0
+00001B89= 66 61 64 65 00           905                                  dc.b            'fade',0
+00001B8E= 6D 65 73 73 00           906                                  dc.b            'mess',0
+00001B93= 69 6E 6E 6F 76 61 ...    907                                  dc.b            'innovation',0
+00001B9E= 61 73 74 6F 6E 69 ...    908                                  dc.b            'astonishing',0
+00001BAA= 74 72 61 79 00           909                                  dc.b            'tray',0
+00001BAF= 61 67 72 65 65 00        910                                  dc.b            'agree',0
+00001BB5= 72 65 6D 65 64 79 00     911                                  dc.b            'remedy',0
+00001BBC= 63 75 74 74 69 6E ...    912                                  dc.b            'cutting',0
+00001BC4= 62 72 65 61 6B 00        913                                  dc.b            'break',0
+00001BCA= 68 6F 6F 6B 00           914                                  dc.b            'hook',0
+00001BCF= 75 72 67 65 00           915                                  dc.b            'urge',0
+00001BD4= 65 63 73 74 61 73 ...    916                                  dc.b            'ecstasy',0
+00001BDC= 62 75 63 6B 65 74 00     917                                  dc.b            'bucket',0
+00001BE3= 73 63 68 65 6D 65 00     918                                  dc.b            'scheme',0
+00001BEA= 70 72 65 73 65 6E ...    919                                  dc.b            'presence',0
+00001BF3= 72 65 63 6F 72 64 00     920                                  dc.b            'record',0
+00001BFA= 6E 65 74 77 6F 72 ...    921                                  dc.b            'network',0
+00001C02= 62 72 65 65 64 00        922                                  dc.b            'breed',0
+00001C08= 68 75 6D 6F 72 00        923                                  dc.b            'humor',0
+00001C0E= 61 72 6D 79 00           924                                  dc.b            'army',0
+00001C13= 65 6E 65 6D 79 00        925                                  dc.b            'enemy',0
+00001C19= 61 64 76 65 6E 74 ...    926                                  dc.b            'adventure',0
+00001C23= 6F 62 73 74 61 63 ...    927                                  dc.b            'obstacle',0
+00001C2C= 76 6F 74 65 00           928                                  dc.b            'vote',0
+00001C31= 61 67 65 6E 64 61 00     929                                  dc.b            'agenda',0
+00001C38= 79 6F 75 74 68 00        930                                  dc.b            'youth',0
+00001C3E= 70 75 62 6C 69 63 ...    931                                  dc.b            'publicity',0
+00001C48= 72 65 74 61 69 6C ...    932                                  dc.b            'retailer',0
+00001C51= 63 72 65 76 69 63 ...    933                                  dc.b            'crevice',0
+00001C59= 6D 61 69 64 00           934                                  dc.b            'maid',0
+00001C5E= 63 6C 61 72 69 66 ...    935                                  dc.b            'clarify',0
+00001C66= 63 6C 75 65 00           936                                  dc.b            'clue',0
+00001C6B= 77 6F 72 64 00           937                                  dc.b            'word',0
+00001C70= 63 61 6E 64 69 64 ...    938                                  dc.b            'candidate',0
+00001C7A= 66 72 65 73 68 00        939                                  dc.b            'fresh',0
+00001C80= 61 62 6C 65 00           940                                  dc.b            'able',0
+00001C85= 65 6C 69 6D 69 6E ...    941                                  dc.b            'eliminate',0
+00001C8F= 70 6C 75 67 00           942                                  dc.b            'plug',0
+00001C94= 6C 6F 6F 70 00           943                                  dc.b            'loop',0
+00001C99= 69 6E 74 65 67 72 ...    944                                  dc.b            'integrity',0
+00001CA3= 73 71 75 61 72 65 00     945                                  dc.b            'square',0
+00001CAA= 72 6F 6D 61 6E 74 ...    946                                  dc.b            'romantic',0
+00001CB3= 65 78 65 63 75 74 ...    947                                  dc.b            'executrix',0
+00001CBD= 6E 6F 72 74 68 00        948                                  dc.b            'north',0
+00001CC3= 64 69 73 63 6F 75 ...    949                                  dc.b            'discourage',0
+00001CCE= 67 72 61 6E 64 6D ...    950                                  dc.b            'grandmother',0
+00001CDA= 66 6F 72 65 63 61 ...    951                                  dc.b            'forecast',0
+00001CE3= 73 6D 61 73 68 00        952                                  dc.b            'smash',0
+00001CE9= 6C 61 7A 79 00           953                                  dc.b            'lazy',0
+00001CEE= 61 62 73 6F 72 70 ...    954                                  dc.b            'absorption',0
+00001CF9= 65 61 67 6C 65 00        955                                  dc.b            'eagle',0
+00001CFF= 6A 6F 63 6B 65 79 00     956                                  dc.b            'jockey',0
+00001D06= 64 69 73 61 70 70 ...    957                                  dc.b            'disappear',0
+00001D10= 67 6F 76 65 72 6E ...    958                                  dc.b            'government',0
+00001D1B= 6A 75 73 74 69 63 ...    959                                  dc.b            'justice',0
+00001D23= 69 72 6F 6E 00           960                                  dc.b            'iron',0
+00001D28= 6C 69 74 65 72 61 ...    961                                  dc.b            'literacy',0
+00001D31= 73 70 69 6E 00           962                                  dc.b            'spin',0
+00001D36= 76 6F 6C 75 6E 74 ...    963                                  dc.b            'volunteer',0
+00001D40= 64 72 69 66 74 00        964                                  dc.b            'drift',0
+00001D46= 77 68 69 74 65 00        965                                  dc.b            'white',0
+00001D4C= 77 69 6E 6E 65 72 00     966                                  dc.b            'winner',0
+00001D53= 63 61 73 73 65 74 ...    967                                  dc.b            'cassette',0
+00001D5C= 6D 61 74 72 69 78 00     968                                  dc.b            'matrix',0
+00001D63= 77 61 76 65 00           969                                  dc.b            'wave',0
+00001D68= 62 6F 6D 62 00           970                                  dc.b            'bomb',0
+00001D6D= 70 72 69 76 69 6C ...    971                                  dc.b            'privilege',0
+00001D77= 73 61 66 65 74 79 00     972                                  dc.b            'safety',0
+00001D7E= 6D 61 78 69 6D 75 ...    973                                  dc.b            'maximum',0
+00001D86= 70 72 69 6D 61 72 ...    974                                  dc.b            'primary',0
+00001D8E= 65 66 66 6C 75 78 00     975                                  dc.b            'efflux',0
+00001D95= 73 74 6F 72 61 67 ...    976                                  dc.b            'storage',0
+00001D9D= 6D 61 6E 63 68 69 00     977                                  dc.b            'manchi',0
+00001DA4                           978  
+00001DA4                           979  
+00001DA4                           980  -------------------- end include --------------------
+00001DA4                           981      INCLUDE "Timer.X68"
+00001DA4                           982  
+00001DA4= 00000000                 983  prevFrameTime       dc.l    0
+00001DA8= 00000000                 984  currentFrameTime    dc.l    0
+00001DAC= 00000000                 985  deltaTime           dc.l    0
+00001DB0                           986  
+00001DB0                           987  InitTimer
+00001DB0  48E7 C000                988      movem.l     d0-d1, -(sp)
+00001DB4                           989      
+00001DB4  7008                     990      move.l      #SYSTEM_TIME, d0
+00001DB6  4E4F                     991      trap        #15
+00001DB8                           992      
+00001DB8  21C1 1DA4                993      move.l      d1, prevFrameTime
+00001DBC                           994      
+00001DBC  4CDF 0003                995      movem.l     (sp)+, d0-d1
+00001DC0  4E75                     996      rts
+00001DC2                           997      
+00001DC2                           998  
+00001DC2                           999  UpdateTimer
+00001DC2  48E7 C000               1000      movem.l     d0-d1, -(sp)
+00001DC6                          1001      
+00001DC6  7008                    1002      move.l      #SYSTEM_TIME, d0
+00001DC8  4E4F                    1003      trap        #15
+00001DCA                          1004      
+00001DCA  21C1 1DA8               1005      move.l      d1, currentFrameTime
+00001DCE  92B8 1DA4               1006      sub.l       prevFrameTime, d1
+00001DD2  21C1 1DAC               1007      move.l      d1, deltaTime
+00001DD6  21F8 1DA8 1DA4          1008      move.l      currentFrameTime, prevFrameTime
+00001DDC                          1009      
+00001DDC  4CDF 0003               1010      movem.l     (sp)+, d0-d1
+00001DE0  4E75                    1011      rts
+00001DE0  4E75                    1012  -------------------- end include --------------------
+00001DE2                          1013      
+00001DE2                          1014      * Put variables and constants here
+00001DE2= 73 6F 75 6E 64 73 ...   1015  OpeningBG               dc.b    'sounds\bg.wav',0
+00001DF0= 73 6F 75 6E 64 73 ...   1016  BlopEffect              dc.b    'sounds\Blop.wav',0
+00001E00= 73 6F 75 6E 64 73 ...   1017  WrongEffect             dc.b    'sounds\ComputerErrorAlert.wav',0
+00001E1E= 73 6F 75 6E 64 73 ...   1018  HurtEffect              dc.b    'sounds\hurt.wav',0
+00001E2E                          1019      
+00001E2E= 74 79 70 69 6E 67 ...   1020  TitleText               dc.b    'typing|simulator',0
+00001E3F= 74 79 70 65 7C 73 ...   1021  TutorialText            dc.b    'type|start|and|press|enter',0
+00001E5A= 74 79 70 65 7C 72 ...   1022  GameOverText1           dc.b    'type|restart|to|restart',0
+00001E72= 74 79 70 65 7C 65 ...   1023  GameOverText2           dc.b    'type|exit|to|exit',0
+00001E84= 73 74 61 72 74 00       1024  StartText               dc.b    'start',0
+00001E8A= 65 78 69 74 00          1025  ExitText                dc.b    'exit',0
+00001E8F= 72 65 73 74 61 72 ...   1026  RestartText             dc.b    'restart',0
+00001E97= 6C 6F 61 64 69 6E ...   1027  LoadingStr              dc.b    'loading',0
+00001E9F                          1028  HAVE_HAD_NO_INPUT       ds.b    1
+00001EA0                          1029  ClearOffset             ds.b    0
+00001EA0                          1030  LastKeyPressed          ds.l    1
+00001EA4                          1031  BGSpriteFile            INCBIN "assets\bg.bmp"
+00161BDC                          1032  EndOfBGSpriteFile 
+00161BDC                          1033  
+00161BDC                          1034  LevelIndicator          INCBIN "assets\levelIndicator.bmp"
+00162564                          1035  EndOfLevelIndicator
+00162564                          1036  
+00162564= 00000043                1037  LevelIndicator_X        dc.l    LEVEL_INDICATOR_X
+00162568= 0000026C                1038  LevelIndicator_Y        dc.l    LEVEL_INDICATOR_Y
+0016256C                          1039  
+0016256C                          1040  * user input field
+0016256C= 000000FA                1041  UserInputField_X        dc.l    250
+00162570= 000002A8                1042  UserInputField_Y        dc.l    680
+00162574= 000000EC                1043  UserInputBG_X1          dc.l    236
+00162578= 00000299                1044  UserInputBG_Y1          dc.l    665
+0016257C= 00000320                1045  UserInputBG_X2          dc.l    800
+00162580= 000002D5                1046  UserInputBG_Y2          dc.l    725
+00162584                          1047  
+00162584= 00FAF81A                1048  UserInputTextColor      dc.l    USER_INPUT_COLOR
+00162588= 00000000                1049  UserInputEvent          dc.l    0
+0016258C= 00000000                1050  UserInputWrong          dc.l    0
+00162590= 00000000                1051  UserInputElapsed        dc.l    0
+00162594                          1052  
+00162594                          1053  * health bar
+00162594= 68 65 61 6C 74 68 00    1054  HealthLabel         dc.b    'health',0
+0016259C= 0000032E                1055  HealthLabel_X       dc.l    814
+001625A0= 000002A8                1056  HealthLabel_Y       dc.l    680
+001625A4= 00000320                1057  HealthBG_X1         dc.l    800
+001625A8= 00000299                1058  HealthBG_Y1         dc.l    665
+001625AC= 0000043A                1059  HealthBG_X2         dc.l    1082
+001625B0= 000002D5                1060  HealthBG_Y2         dc.l    725
+001625B4                          1061  
+001625B4= 000003F7                1062  HealthNumber_X      dc.l    1015
+001625B8= 000002A8                1063  HealthNumber_Y      dc.l    680
+001625BC                          1064  
+001625BC= 0000000A                1065  HealthCount         dc.l    INITIAL_HEALTH
+001625C0                          1066  * score
+001625C0= 73 63 6F 72 65 00       1067  ScoreLabel          dc.b    'score',0
+001625C6= 00000448                1068  ScoreLabel_X        dc.l    1096
+001625CA= 000002A8                1069  ScoreLabel_Y        dc.l    680
+001625CE= 0000043A                1070  ScoreBG_X1          dc.l    1082
+001625D2= 00000299                1071  ScoreBG_Y1          dc.l    665
+001625D6= 00000552                1072  ScoreBG_X2          dc.l    1362
+001625DA= 000002D5                1073  ScoreBG_Y2          dc.l    725
+001625DE                          1074  
+001625DE= 000004F6                1075  ScoreNumber_X       dc.l    1270
+001625E2= 000002A8                1076  ScoreNumber_Y       dc.l    680
+001625E6                          1077  
+001625E6= 00000000                1078  ScoreCount          dc.l    0
+001625EA                          1079  
+001625EA                          1080  
+001625EA                          1081  *variables regarding challenge words
+001625EA= 0000000A                1082  ChallengeWord_Acc   dc.l    10
+001625EE= 00000001                1083  ChallengeWordCount  dc.l    1
+001625F2                          1084  
+001625F2                          1085  ChallengeWord_Draw  ds.l    MAX_WORDS_ON_SCREEN
+00162642                          1086  ChallengeWord_Addr  ds.l    MAX_WORDS_ON_SCREEN
+00162692                          1087  ChallengeWord_Speed ds.l    MAX_WORDS_ON_SCREEN             ; speed has to be pixels per 100th of second
+001626E2                          1088  ChallengeWord_X     dS.l    MAX_WORDS_ON_SCREEN             ;400<<FRAC_BITS<<FRAC_BITS
+00162732                          1089  ChallengeWord_Y     ds.l    MAX_WORDS_ON_SCREEN
+00162782                          1090  
+00162782= 00000001                1091  CanAddNewWord       dc.l        1
+00162786= 00000000                1092  CanAddTimeElapsed   dc.l        0
+0016278A                          1093  
+0016278A= 00000000                1094  GameState           dc.l        MAIN_MENU_SCREEN
+0016278E                          1095  
+0016278E= 00000000                1096  TutorialElapsed     dc.l        0
+00162792= 00000001                1097  IsAnimating         dc.l        1
+00162796= 00000000                1098  AnimationTimer      dc.l        0
+0016279A                          1099  
+0016279A                          1100  
+0016279A                          1101  
+0016279A                          1102  UpdateLevelIndicator
+0016279A  48E7 C000               1103      movem.l     d0-d1, -(sp)
+0016279E                          1104      
+0016279E                          1105      * redrawing the previous region of level indicator to aviod trail
+0016279E  2F3C 00161BDC           1106      move.l      #EndOfBGSpriteFile, -(sp)
+001627A4  2F3C 00001EA4           1107      move.l      #BGSpriteFile, -(sp)
+001627AA  2F3C 00000030           1108      move.l      #48, -(sp)     ; chunk_height is 128
+001627B0  2F3C 00000030           1109      move.l      #48, -(sp)     ; chunk_width is 128
+001627B6  2F39 00162568           1110      move.l      LevelIndicator_Y, -(sp)       ; chunk_y
+001627BC  2F39 00162564           1111      move.l      LevelIndicator_X, -(sp)       ; chunk_x
+001627C2  2F39 00162568           1112      move.l      LevelIndicator_Y, -(sp)       ; screen y
+001627C8  2F39 00162564           1113      move.l      LevelIndicator_X, -(sp)       ; screen x
+001627CE  4EB8 158A               1114      jsr drawSprite              ; calling subroutine to draw s
+001627D2  DFFC 00000020           1115      add.l      #32, sp          ; deleting data used by subroutine to avoid memory leak
+001627D8                          1116      
+001627D8  203C 0000026C           1117      move.l      #LEVEL_INDICATOR_Y, d0
+001627DE  2239 001625E6           1118      move.l      ScoreCount, d1
+001627E4  E289                    1119      lsr.l       #1, d1
+001627E6  9081                    1120      sub.l       d1, d0
+001627E8  23C0 00162568           1121      move.l      d0, LevelIndicator_Y
+001627EE                          1122      
+001627EE  2F3C 00162564           1123      move.l      #EndOfLevelIndicator, -(sp)
+001627F4  2F3C 00161BDC           1124      move.l      #LevelIndicator, -(sp)
+001627FA  2F3C 0000002F           1125      move.l      #47, -(sp)     ; chunk_height
+00162800  2F3C 00000030           1126      move.l      #48, -(sp)     ; chunk_width
+00162806  2F3C 00000000           1127      move.l      #0, -(sp)       ; chunk_y
+0016280C  2F3C 00000000           1128      move.l      #0, -(sp)       ; chunk_x
+00162812  2F00                    1129      move.l      d0, -(sp)       ; screen y
+00162814  2F39 00162564           1130      move.l      LevelIndicator_X, -(sp)       ; screen x
+0016281A  4EB8 158A               1131      jsr drawSprite              ; calling subroutine to draw s
+0016281E  DFFC 00000020           1132      add.l      #32, sp          ; deleting data used by subroutine to avoid memory leak
+00162824                          1133      
+00162824  4CDF 0003               1134      movem.l     (sp)+, d0-d1
+00162828  4E75                    1135      rts
+0016282A                          1136  
+0016282A                          1137  
+0016282A                          1138  
+0016282A                          1139  ClearComputerScreen
+0016282A  48E7 F800               1140      movem.l      d0-d4, -(sp)               ; saving registers that are being used in the subroutine
+0016282E                          1141      
+0016282E  223C 00362A00           1142      move.l      #$00362a00, d1
+00162834  7050                    1143      move.l      #SET_PEN_COLOR, d0          ; setting pen color
+00162836  4E4F                    1144      trap        #15
+00162838  7051                    1145      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+0016283A  4E4F                    1146      trap        #15
+0016283C                          1147      
+0016283C                          1148      * draw rectangle
+0016283C  7057                    1149      move.l      #DRAW_RECT, d0
+0016283E  223C 000000EC           1150      move.l      #236, d1
+00162844  7437                    1151      move.l      #55, d2
+00162846  263C 00000552           1152      move.l      #1362, d3
+0016284C  283C 000002D5           1153      move.l      #725, d4
+00162852  4E4F                    1154      trap        #15
+00162854                          1155      
+00162854  4CDF 001F               1156      movem.l     (sp)+, d0-d4
+00162858  4E75                    1157      rts
+0016285A                          1158      
+0016285A                          1159  
+0016285A                          1160  
+0016285A                          1161  MainMenu
+0016285A  48E7 FF00               1162      movem.l     d0-d7, -(sp)
+0016285E                          1163      
+0016285E  2E38 1DAC               1164      move.l      deltaTime, d7
+00162862                          1165          
+00162862  223C 00C9DAD1           1166      move.l      #$00c9dad1, d1
+00162868  7050                    1167      move.l      #SET_PEN_COLOR, d0         ; setting pen color
+0016286A  4E4F                    1168      trap        #15
+0016286C  7051                    1169      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+0016286E  4E4F                    1170      trap        #15
+00162870                          1171      
+00162870  0CB9 00000001 00162792  1172      cmp.l       #1, IsAnimating
+0016287A  6600 0072               1173      bne         .notAnimating
+0016287E                          1174      
+0016287E  DEB9 00162796           1175      add.l       AnimationTimer, d7
+00162884  23C7 00162796           1176      move.l      d7, AnimationTimer
+0016288A                          1177      
+0016288A  7057                    1178      move.l      #DRAW_RECT, d0
+0016288C  223C 00000258           1179      move.l      #TITLE_BG_X1, d1
+00162892  263C 00000410           1180      move.l      #TITLE_BG_X2, d3
+00162898                          1181      
+00162898  2C07                    1182      move.l      d7, d6
+0016289A  E28E                    1183      lsr.l       #1, d6
+0016289C                          1184      
+0016289C  2A3C 000000FA           1185      move.l      #TITLE_BG_Y1, d5
+001628A2  0685 0000015E           1186      add.l       #TITLE_BG_Y2, d5
+001628A8                          1187      
+001628A8  E28D                    1188      lsr.l       #1, d5
+001628AA                          1189      
+001628AA  2405                    1190      move.l      d5, d2
+001628AC  9486                    1191      sub.l       d6, d2
+001628AE                          1192      
+001628AE  B4BC 000000FA           1193      cmp.l       #TITLE_BG_Y1, d2
+001628B4  6E00 0012               1194      bgt         .y1notborder
+001628B8                          1195      
+001628B8  243C 000000FA           1196      move.l      #TITLE_BG_Y1, d2
+001628BE  23FC 00000000 00162792  1197      move.l      #0, IsAnimating
+001628C8                          1198  .y1notborder
+001628C8                          1199      
+001628C8  2805                    1200      move.l      d5, d4
+001628CA  D886                    1201      add.l       d6, d4
+001628CC                          1202      
+001628CC  B8BC 0000015E           1203      cmp.l       #TITLE_BG_Y2, d4
+001628D2  6D00 0012               1204      blt         .y2notborder
+001628D6                          1205      
+001628D6  283C 0000015E           1206      move.l      #TITLE_BG_Y2, d4
+001628DC  23FC 00000000 00162792  1207      move.l      #0, IsAnimating
+001628E6                          1208  .y2notborder
+001628E6  4E4F                    1209      trap        #15
+001628E8                          1210          
+001628E8  4EF9 0016297A           1211      jmp         .returnBack
+001628EE                          1212  .notAnimating
+001628EE  DFB9 0016278E           1213      add.l       d7, TutorialElapsed
+001628F4                          1214      
+001628F4                          1215      * draw rectangle
+001628F4  7057                    1216      move.l      #DRAW_RECT, d0
+001628F6  223C 00000258           1217      move.l      #TITLE_BG_X1, d1
+001628FC  243C 000000FA           1218      move.l      #TITLE_BG_Y1, d2
+00162902  263C 00000410           1219      move.l      #TITLE_BG_X2, d3
+00162908  283C 0000015E           1220      move.l      #TITLE_BG_Y2, d4
+0016290E  4E4F                    1221      trap        #15
+00162910                          1222      
+00162910                          1223      *TitleText
+00162910  41F8 1E2E               1224      lea         TitleText, a0
+00162914  2F08                    1225      move.l      a0, -(sp)     ; string
+00162916  2F3C 00362A00           1226      move.l      #$00362a00, -(sp)
+0016291C  2F3C 0000011C           1227      move.l      #TITLE_LABEL_Y, -(sp)       ; screen y
+00162922  2F3C 00000267           1228      move.l      #TITLE_LABEL_X, -(sp)       ; screen x
+00162928  4EB8 14E8               1229      jsr         DrawString
+0016292C  DFFC 00000010           1230      add.l       #16, sp                 ; deleting data used by subroutine to avoid memory leak
+00162932                          1231  
+00162932                          1232      
+00162932  0CB9 00000078 0016278E  1233      cmp.l       #120, TutorialElapsed
+0016293C  6E00 0024               1234      bgt         .skipDrawing
+00162940                          1235      
+00162940  41F8 1E3F               1236      lea         TutorialText, a0
+00162944  2F08                    1237      move.l      a0, -(sp)     ; string
+00162946  2F3C 00E4F5E8           1238      move.l      #$00e4f5e8, -(sp)
+0016294C  2F3C 000001F4           1239      move.l      #TUTORIAL_TEXT_Y, -(sp)       ; screen y
+00162952  2F3C 000001D6           1240      move.l      #TUTORIAL_TEXT_X, -(sp)       ; screen x
+00162958  4EB8 14E8               1241      jsr         DrawString
+0016295C  DFFC 00000010           1242      add.l       #16, sp                 ; deleting data used by subroutine to avoid memory leak
+00162962                          1243  
+00162962                          1244  .skipDrawing
+00162962  0CB9 00000096 0016278E  1245      cmp.l       #150, TutorialElapsed
+0016296C  6D00 000C               1246      blt         .returnBack
+00162970  23FC 00000000 0016278E  1247      move.l      #0, TutorialElapsed
+0016297A                          1248      
+0016297A                          1249  .returnBack
+0016297A  4CDF 00FF               1250      movem.l     (sp)+, d0-d7
+0016297E  4E75                    1251      rts
+00162980                          1252  
+00162980                          1253  
+00162980                          1254  
+00162980                          1255  GameOverScreen
+00162980  48E7 FFFE               1256      movem.l     d0-d7/a0-a6, -(sp)
+00162984                          1257      
+00162984  2E38 1DAC               1258      move.l      deltaTime, d7
+00162988  223C 00C9DAD1           1259      move.l      #$00c9dad1, d1
+0016298E  7050                    1260      move.l      #SET_PEN_COLOR, d0         ; setting pen color
+00162990  4E4F                    1261      trap        #15
+00162992  7051                    1262      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+00162994  4E4F                    1263      trap        #15
+00162996                          1264      
+00162996  0CB9 00000001 00162792  1265      cmp.l       #1, IsAnimating
+001629A0  6600 0072               1266      bne         .notAnimating
+001629A4                          1267      
+001629A4  DEB9 00162796           1268      add.l       AnimationTimer, d7
+001629AA  23C7 00162796           1269      move.l      d7, AnimationTimer
+001629B0                          1270      
+001629B0  7057                    1271      move.l      #DRAW_RECT, d0
+001629B2  223C 0000026C           1272      move.l      #GO_SCORE_BG_X1, d1
+001629B8  263C 000003E8           1273      move.l      #GO_SCORE_BG_X2, d3
+001629BE                          1274      
+001629BE  2C07                    1275      move.l      d7, d6
+001629C0  E28E                    1276      lsr.l       #1, d6
+001629C2                          1277      
+001629C2  2A3C 000000FA           1278      move.l      #GO_SCORE_BG_Y1, d5
+001629C8  0685 0000015E           1279      add.l       #GO_SCORE_BG_Y2, d5
+001629CE                          1280      
+001629CE  E28D                    1281      lsr.l       #1, d5
+001629D0                          1282      
+001629D0  2405                    1283      move.l      d5, d2
+001629D2  9486                    1284      sub.l       d6, d2
+001629D4                          1285      
+001629D4  B4BC 000000FA           1286      cmp.l       #GO_SCORE_BG_Y1, d2
+001629DA  6E00 0012               1287      bgt         .y1notborder
+001629DE                          1288      
+001629DE  243C 000000FA           1289      move.l      #GO_SCORE_BG_Y1, d2
+001629E4  23FC 00000000 00162792  1290      move.l      #0, IsAnimating
+001629EE                          1291  .y1notborder
+001629EE                          1292      
+001629EE  2805                    1293      move.l      d5, d4
+001629F0  D886                    1294      add.l       d6, d4
+001629F2                          1295      
+001629F2  B8BC 0000015E           1296      cmp.l       #GO_SCORE_BG_Y2, d4
+001629F8  6D00 0012               1297      blt         .y2notborder
+001629FC                          1298      
+001629FC  283C 0000015E           1299      move.l      #GO_SCORE_BG_Y2, d4
+00162A02  23FC 00000000 00162792  1300      move.l      #0, IsAnimating
+00162A0C                          1301  .y2notborder
+00162A0C  4E4F                    1302      trap        #15
+00162A0E                          1303          
+00162A0E  4EF9 00162AFA           1304      jmp         .returnBack
+00162A14                          1305  .notAnimating
+00162A14  DFB9 0016278E           1306      add.l       d7, TutorialElapsed
+00162A1A                          1307      
+00162A1A  223C 00C9DAD1           1308      move.l      #$00c9dad1, d1
+00162A20  7050                    1309      move.l      #SET_PEN_COLOR, d0         ; setting pen color
+00162A22  4E4F                    1310      trap        #15
+00162A24  7051                    1311      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+00162A26  4E4F                    1312      trap        #15
+00162A28                          1313      
+00162A28                          1314      * draw rectangle
+00162A28  7057                    1315      move.l      #DRAW_RECT, d0
+00162A2A  223C 0000026C           1316      move.l      #GO_SCORE_BG_X1, d1
+00162A30  243C 000000FA           1317      move.l      #GO_SCORE_BG_Y1, d2
+00162A36  263C 000003E8           1318      move.l      #GO_SCORE_BG_X2, d3
+00162A3C  283C 0000015E           1319      move.l      #GO_SCORE_BG_Y2, d4
+00162A42  4E4F                    1320      trap        #15
+00162A44                          1321  
+00162A44                          1322      *---- finished drawing bg for input field
+00162A44                          1323      
+00162A44  41F9 001625C0           1324      lea         ScoreLabel, a0
+00162A4A  2F08                    1325      move.l      a0, -(sp)     ; string
+00162A4C                          1326  ;    move.l      #$004ccc1d, -(sp)     ; color
+00162A4C  2F3C 00362A00           1327      move.l      #$00362a00, -(sp)
+00162A52  2F3C 0000011C           1328      move.l      #GO_SCORE_LABEL_Y, -(sp)       ; screen y
+00162A58  2F3C 0000027B           1329      move.l      #GO_SCORE_LABEL_X, -(sp)       ; screen x
+00162A5E  4EB8 14E8               1330      jsr         DrawString
+00162A62  DFFC 00000010           1331      add.l       #16, sp                 ; deleting data used by subroutine to avoid memory leak
+00162A68                          1332      
+00162A68                          1333      
+00162A68                          1334      * Order in which stack contains information is
+00162A68                          1335      * x - Position on screen (long)
+00162A68                          1336      * y - Position on screen (long)
+00162A68                          1337      * color - color of the digit
+00162A68                          1338      * number - number to be drawn
+00162A68                          1339      * Since stack is first in last out the data has to be pushed in reverse order
+00162A68  2F3C 00000003           1340      move.l      #3, -(sp)
+00162A6E  2F39 001625E6           1341      move.l      ScoreCount, -(sp)     ; number
+00162A74  2F3C 00362A00           1342      move.l      #$00362a00, -(sp)     ; color
+00162A7A  2F3C 0000011C           1343      move.l      #GO_SCORE_NUMBER_Y, -(sp)       ; screen y
+00162A80  2F3C 00000384           1344      move.l      #GO_SCORE_NUMBER_X, -(sp)       ; screen x
+00162A86  4EB8 12D0               1345      jsr         DrawDigits
+00162A8A  DFFC 00000014           1346      add.l       #20, sp          ; deleting data used by subroutine to avoid memory leak
+00162A90                          1347  
+00162A90  0CB9 00000078 0016278E  1348      cmp.l       #120, TutorialElapsed
+00162A9A  6E00 0046               1349      bgt         .skipDrawing
+00162A9E                          1350      
+00162A9E  41F8 1E5A               1351      lea         GameOverText1, a0
+00162AA2  2F08                    1352      move.l      a0, -(sp)     ; string
+00162AA4  2F3C 00E4F5E8           1353      move.l      #$00e4f5e8, -(sp)
+00162AAA  2F3C 000001F4           1354      move.l      #RESTART_LABEL_Y, -(sp)       ; screen y
+00162AB0  2F3C 000001F4           1355      move.l      #RESTART_LABEL_X, -(sp)       ; screen x
+00162AB6  4EB8 14E8               1356      jsr         DrawString
+00162ABA  DFFC 00000010           1357      add.l       #16, sp                 ; deleting data used by subroutine to avoid memory leak
+00162AC0                          1358      
+00162AC0  41F8 1E72               1359      lea         GameOverText2, a0
+00162AC4  2F08                    1360      move.l      a0, -(sp)     ; string
+00162AC6  2F3C 00E4F5E8           1361      move.l      #$00e4f5e8, -(sp)
+00162ACC  2F3C 0000023A           1362      move.l      #EXIT_LABEL_Y, -(sp)       ; screen y
+00162AD2  2F3C 00000244           1363      move.l      #EXIT_LABEL_X, -(sp)       ; screen x
+00162AD8  4EB8 14E8               1364      jsr         DrawString
+00162ADC  DFFC 00000010           1365      add.l       #16, sp                 ; deleting data used by subroutine to avoid memory leak
+00162AE2                          1366      
+00162AE2                          1367  .skipDrawing
+00162AE2  0CB9 00000096 0016278E  1368      cmp.l       #150, TutorialElapsed
+00162AEC  6D00 000C               1369      blt         .returnBack
+00162AF0  23FC 00000000 0016278E  1370      move.l      #0, TutorialElapsed
+00162AFA                          1371      
+00162AFA                          1372  .returnBack
+00162AFA  4CDF 7FFF               1373      movem.l     (sp)+, d0-d7/a0-a6
+00162AFE  4E75                    1374      rts
+00162B00                          1375  
+00162B00                          1376  
+00162B00                          1377  
+00162B00                          1378  RestartGame
+00162B00  4EB9 00162BAA           1379      jsr         InitChallengeWords
+00162B06  23FC 00000001 0016278A  1380      move.l      #GAME_SCREEN, GameState
+00162B10  23FC 0000000A 001625BC  1381      move.l      #INITIAL_HEALTH, HealthCount
+00162B1A  23FC 00000000 001625E6  1382      move.l      #0, ScoreCount
+00162B24  4EB9 0016279A           1383      jsr         UpdateLevelIndicator
+00162B2A  4E75                    1384      rts
+00162B2C                          1385  
+00162B2C                          1386  
+00162B2C                          1387  
+00162B2C                          1388  UpdateChallengeLevel
+00162B2C  48E7 FFFE               1389      movem.l     d0-d7/a0-a6, -(sp)
+00162B30                          1390  
+00162B30  41F9 001625F2           1391      lea         ChallengeWord_Draw, a0
+00162B36                          1392      
+00162B36  2E38 1DAC               1393      move.l      deltaTime, d7
+00162B3A  DFB9 00162786           1394      add.l       d7, CanAddTimeElapsed
+00162B40                          1395  
+00162B40  0CB9 00000046 00162786  1396      cmp.l       #70, CanAddTimeElapsed
+00162B4A  6D00 0058               1397      blt         .returnBack
+00162B4E                          1398  
+00162B4E  23FC 00000000 00162786  1399      move.l      #0, CanAddTimeElapsed
+00162B58                          1400  
+00162B58  4280                    1401      clr.l       d0                          ; counter    
+00162B5A  4286                    1402      clr.l       d6                          ; number of words on screen
+00162B5C                          1403  
+00162B5C                          1404  .parsingLoop
+00162B5C  2200                    1405      move.l      d0, d1
+00162B5E  E589                    1406      lsl.l       #2, d1
+00162B60  2430 1000               1407      move.l      (a0, d1), d2
+00162B64  6700 0004               1408      beq         .skipIncr
+00162B68  5286                    1409      add.l       #1, d6
+00162B6A                          1410  
+00162B6A                          1411  .skipIncr
+00162B6A  5280                    1412      add.l       #1, d0
+00162B6C  B0B9 001625EE           1413      cmp.l       ChallengeWordCount, d0
+00162B72  6DE8                    1414      blt         .parsingLoop
+00162B74                          1415  
+00162B74                          1416      * d6 contains the count of words displayed on screen
+00162B74  BCB9 001625EE           1417      cmp.l       ChallengeWordCount, d6
+00162B7A  6E00 0028               1418      bgt         .returnBack
+00162B7E                          1419  
+00162B7E  4280                    1420      clr.l       d0                          ; counter    
+00162B80                          1421  .parseLoop2
+00162B80  2200                    1422      move.l      d0, d1
+00162B82  E589                    1423      lsl.l       #2, d1
+00162B84  2430 1000               1424      move.l      (a0, d1), d2
+00162B88  6600 0010               1425      bne         .skipIncr2
+00162B8C  21BC 00000001 1000      1426      move.l      #1, (a0, d1)            ; setting the d1 to be visible
+00162B94  4EF9 00162BA4           1427      jmp         .returnBack
+00162B9A                          1428  .skipIncr2
+00162B9A  5280                    1429      add.l       #1, d0
+00162B9C  B0B9 001625EE           1430      cmp.l       ChallengeWordCount, d0
+00162BA2  6DDC                    1431      blt         .parseLoop2
+00162BA4                          1432  
+00162BA4                          1433  
+00162BA4                          1434  
+00162BA4                          1435  .returnBack
+00162BA4  4CDF 7FFF               1436      movem.l     (sp)+, d0-d7/a0-a6
+00162BA8  4E75                    1437      rts
+00162BAA                          1438  
+00162BAA                          1439  
+00162BAA                          1440  
+00162BAA                          1441  InitChallengeWords
+00162BAA  48E7 FFFE               1442      movem.l     d0-d7/a0-a6, -(sp)
+00162BAE                          1443      
+00162BAE  43F9 00162642           1444      lea         ChallengeWord_Addr, a1
+00162BB4  45F9 00162692           1445      lea         ChallengeWord_Speed, a2
+00162BBA  47F9 001626E2           1446      lea         ChallengeWord_X, a3
+00162BC0  49F9 00162732           1447      lea         ChallengeWord_Y, a4
+00162BC6  4BF9 001625F2           1448      lea         ChallengeWord_Draw, a5
+00162BCC                          1449      
+00162BCC  7014                    1450      move.l      #MAX_WORDS_ON_SCREEN, d0                 ; loop counter
+00162BCE                          1451     
+00162BCE                          1452  .parsingLoop
+00162BCE  2200                    1453      move.l      d0, d1
+00162BD0  5381                    1454      subi.l      #1, d1                  ; if value is 20 get 19th word
+00162BD2  4286                    1455      clr.l       d6
+00162BD4  4EB8 11D2               1456      jsr         getRandomByteIntoD6
+00162BD8  2F06                    1457      move.l      d6, -(sp)
+00162BDA  2F3C 0000162C           1458      move.l      #WORD_DICTIONARY, -(sp)
+00162BE0  4EB8 118E               1459      jsr         GetNthWord
+00162BE4  508F                    1460      add.l       #8, sp
+00162BE6                          1461      
+00162BE6                          1462      * a0 will have the address of nth word
+00162BE6  2200                    1463      move.l      d0, d1
+00162BE8  5381                    1464      subi.l      #1, d1                  ; if value is 20 get 19th word
+00162BEA  E589                    1465      lsl.l       #2, d1
+00162BEC  2388 1000               1466      move.l      a0, (a1, d1)
+00162BF0  25BC 00000001 1000      1467      move.l      #INITIAL_SPEED, (a2, d1)
+00162BF8                          1468  
+00162BF8  4286                    1469      clr.l       d6
+00162BFA  4EB8 11D2               1470      jsr         getRandomByteIntoD6
+00162BFE  E38E                    1471      lsl.l       #1, d6
+00162C00  0686 0000012C           1472      addi.l      #STARTING_WORD_X, d6
+00162C06                          1473      
+00162C06                          1474      * converting it to fixed point
+00162C06  ED8E                    1475      lsl.l       #FRAC_BITS, d6
+00162C08  ED8E                    1476      lsl.l       #FRAC_BITS, d6
+00162C0A                          1477      
+00162C0A  2786 1000               1478      move.l      d6, (a3, d1)
+00162C0E  29BC 0003C000 1000      1479      move.l      #INITIAL_WORD_Y, (a4, d1)
+00162C16                          1480      
+00162C16  2BBC 00000000 1000      1481      move.l      #0, (a5, d1)
+00162C1E                          1482      
+00162C1E                          1483      * looping condition
+00162C1E  5380                    1484      subi.l      #1, d0
+00162C20  66AC                    1485      bne         .parsingLoop
+00162C22                          1486      
+00162C22  4CDF 7FFF               1487      movem.l     (sp)+, d0-d7/a0-a6
+00162C26  4E75                    1488      rts
+00162C28                          1489  
+00162C28                          1490  
+00162C28                          1491  
+00162C28                          1492  
+00162C28                          1493  
+00162C28                          1494  
+00162C28                          1495  
+00162C28                          1496  DrawChallengeWords
+00162C28  48E7 E0E0               1497      movem.l     d0-d2/a0-a2, -(sp)
+00162C2C                          1498      
+00162C2C  41F9 00162642           1499      lea         ChallengeWord_Addr, a0
+00162C32  43F9 001626E2           1500      lea         ChallengeWord_X, a1
+00162C38  45F9 00162732           1501      lea         ChallengeWord_Y, a2
+00162C3E  47F9 001625F2           1502      lea         ChallengeWord_Draw, a3
+00162C44                          1503      
+00162C44  2239 001625EE           1504      move.l      ChallengeWordCount, d1          ; loop counter
+00162C4A                          1505      
+00162C4A                          1506  .parsingLoop
+00162C4A  2401                    1507      move.l      d1, d2
+00162C4C  5382                    1508      subi.l      #1, d2
+00162C4E  E58A                    1509      lsl.l       #2, d2
+00162C50                          1510      
+00162C50  2033 2000               1511      move.l      (a3, d2), d0
+00162C54  6700 002A               1512      beq         .skipIteration
+00162C58                          1513      
+00162C58  2F30 2000               1514      move.l      (a0, d2), -(sp)                    ; string
+00162C5C  2F3C 00908335           1515      move.l      #$00908335, -(sp)
+00162C62                          1516      
+00162C62  2032 2000               1517      move.l      (a2, d2), d0
+00162C66  EC88                    1518      lsr.l       #FRAC_BITS, d0
+00162C68  EC88                    1519      lsr.l       #FRAC_BITS, d0
+00162C6A  2F00                    1520      move.l      d0, -(sp)                   ; screen y
+00162C6C                          1521      
+00162C6C  2031 2000               1522      move.l      (a1, d2), d0
+00162C70  EC88                    1523      lsr.l       #FRAC_BITS, d0
+00162C72  EC88                    1524      lsr.l       #FRAC_BITS, d0
+00162C74  2F00                    1525      move.l      d0, -(sp)                   ; screen x
+00162C76                          1526      
+00162C76  4EB8 14E8               1527      jsr         DrawString
+00162C7A  DFFC 00000010           1528      add.l       #16, sp                     ; deleting data used by subroutine to avoid memory leak
+00162C80                          1529  
+00162C80                          1530  .skipIteration
+00162C80                          1531      * loop conditions
+00162C80  5381                    1532      subi.l      #1, d1
+00162C82  66C6                    1533      bne         .parsingLoop
+00162C84                          1534      
+00162C84  4CDF 0707               1535      movem.l     (sp)+, d0-d2/a0-a2
+00162C88  4E75                    1536      rts
+00162C8A                          1537  
+00162C8A                          1538  
+00162C8A                          1539  
+00162C8A                          1540  
+00162C8A                          1541  
+00162C8A                          1542  
+00162C8A                          1543  UpdateChallengeWords
+00162C8A  48E7 FCC0               1544      movem.l     d0-d5/a0-a1, -(sp)
+00162C8E                          1545      
+00162C8E  41F9 00162692           1546      lea         ChallengeWord_Speed, a0
+00162C94  43F9 00162732           1547      lea         ChallengeWord_Y, a1
+00162C9A  47F9 001625F2           1548      lea         ChallengeWord_Draw, a3
+00162CA0                          1549      
+00162CA0  2839 001625EE           1550      move.l      ChallengeWordCount, d4          ; loop counter
+00162CA6                          1551  .parsingLoop
+00162CA6  2A04                    1552      move.l      d4, d5
+00162CA8  5385                    1553      subi.l      #1, d5
+00162CAA  E58D                    1554      lsl.l       #2, d5
+00162CAC                          1555      
+00162CAC  2033 5000               1556      move.l      (a3, d5), d0
+00162CB0  6700 007E               1557      beq         .skipReset
+00162CB4                          1558      
+00162CB4  2031 5000               1559      move.l      (a1, d5), d0
+00162CB8  2230 5000               1560      move.l      (a0, d5), d1
+00162CBC  2438 1DAC               1561      move.l      deltaTime, d2
+00162CC0                          1562      
+00162CC0                          1563      * v = u + a * t
+00162CC0  2639 001625EA           1564      move.l      ChallengeWord_Acc, d3
+00162CC6  C6C2                    1565      mulu        d2, d3
+00162CC8  D283                    1566      add.l       d3, d1
+00162CCA                          1567      
+00162CCA  2181 5000               1568      move.l      d1, (a0, d5)     ; saving the final velocity
+00162CCE                          1569  
+00162CCE                          1570      * s = u*t + 0.5*a*t*t
+00162CCE  C2C2                    1571      mulu        d2, d1
+00162CD0  2639 001625EA           1572      move.l      ChallengeWord_Acc, d3
+00162CD6  C4C2                    1573      mulu        d2, d2
+00162CD8  C4C3                    1574      mulu        d3, d2
+00162CDA  E28A                    1575      lsr.l       #1, d2                  ; 0.5 *( a*t*t )
+00162CDC                          1576      
+00162CDC  D282                    1577      add.l       d2, d1
+00162CDE                          1578      
+00162CDE                          1579      * adding delta distance to the y
+00162CDE  D081                    1580      add.l       d1, d0
+00162CE0  2380 5000               1581      move.l      d0, (a1, d5)
+00162CE4                          1582      
+00162CE4  0C80 0026C000           1583      cmpi.l      #ENDING_WORD_Y, d0
+00162CEA  6D00 0044               1584      blt         .skipReset
+00162CEE                          1585      
+00162CEE  43F8 1E1E               1586      lea         HurtEffect, a1
+00162CF2  7049                    1587      move.l      #PLAY_SOUND, d0
+00162CF4  4E4F                    1588      trap        #15
+00162CF6                          1589      
+00162CF6  2F05                    1590      move.l      d5, -(sp)
+00162CF8  4EB9 00162D3C           1591      jsr         ResetWord
+00162CFE  588F                    1592      add.l       #4, sp
+00162D00  53B9 001625BC           1593      sub.l       #1, HealthCount
+00162D06  6600 002E               1594      bne         .returnBack
+00162D0A                          1595      * if health is 0 
+00162D0A  23FC 00000001 00162792  1596      move.l      #1, IsAnimating
+00162D14  23FC 00000000 00162796  1597      move.l      #0, AnimationTimer
+00162D1E                          1598  
+00162D1E  23FC 00000002 0016278A  1599      move.l      #GAME_OVER_SCREEN, GameState
+00162D28                          1600      
+00162D28  43F8 1DE2               1601      lea         OpeningBG, a1
+00162D2C  7049                    1602      move.l      #PLAY_SOUND, d0
+00162D2E  4E4F                    1603      trap        #15
+00162D30                          1604  .skipReset
+00162D30                          1605      * looping condition
+00162D30  5384                    1606      subi.l      #1, d4
+00162D32  6600 FF72               1607      bne         .parsingLoop
+00162D36                          1608  .returnBack
+00162D36  4CDF 033F               1609      movem.l     (sp)+, d0-d5/a0-a1
+00162D3A  4E75                    1610      rts
+00162D3C                          1611  
+00162D3C                          1612  
+00162D3C                          1613  
+00162D3C                          1614  
+00162D3C                          1615  
+00162D3C                          1616  
+00162D3C                          1617  ResetWord
+00162D3C  48E7 FFFE               1618      movem.l     d0-d7/a0-a6, -(sp)
+00162D40                          1619      
+00162D40  202F 0040               1620      move.l      64(sp), d0       ; index
+00162D44                          1621  
+00162D44  41F9 001626E2           1622      lea         ChallengeWord_X, a0    
+00162D4A  43F9 00162732           1623      lea         ChallengeWord_Y, a1
+00162D50  45F9 00162692           1624      lea         ChallengeWord_Speed, a2
+00162D56  47F9 00162642           1625      lea         ChallengeWord_Addr, a3
+00162D5C  49F9 001625F2           1626      lea         ChallengeWord_Draw, a4
+00162D62                          1627      
+00162D62                          1628      * resetting position    
+00162D62  23BC 0003C000 0000      1629      move.l      #INITIAL_WORD_Y, (a1, d0)
+00162D6A  4286                    1630      clr.l       d6
+00162D6C  4EB8 11D2               1631      jsr         getRandomByteIntoD6
+00162D70  E38E                    1632      lsl.l       #1, d6
+00162D72  0686 0000012C           1633      add.l       #STARTING_WORD_X, d6
+00162D78                          1634      * converting it to fixed point
+00162D78  ED8E                    1635      lsl.l       #FRAC_BITS, d6
+00162D7A  ED8E                    1636      lsl.l       #FRAC_BITS, d6
+00162D7C  2186 0000               1637      move.l      d6, (a0, d0)
+00162D80                          1638  
+00162D80                          1639      * resetting velocity
+00162D80  25BC 00000001 0000      1640      move.l      #INITIAL_SPEED, (a2, d0)
+00162D88                          1641      
+00162D88                          1642      * getting random word
+00162D88  4286                    1643      clr.l       d6
+00162D8A  4EB8 11D2               1644      jsr         getRandomByteIntoD6
+00162D8E  2F06                    1645      move.l      d6, -(sp)
+00162D90  2F3C 0000162C           1646      move.l      #WORD_DICTIONARY, -(sp)
+00162D96  4EB8 118E               1647      jsr         GetNthWord
+00162D9A  508F                    1648      add.l       #8, sp
+00162D9C                          1649      
+00162D9C                          1650      * a0 will have the address of nth word
+00162D9C  202F 0040               1651      move.l      64(sp), d0       ; index
+00162DA0  2788 0000               1652      move.l      a0, (a3, d0)
+00162DA4                          1653      
+00162DA4                          1654      * setting draw as false
+00162DA4  29BC 00000000 0000      1655      move.l      #0, (a4, d0)
+00162DAC                          1656      
+00162DAC  4CDF 7FFF               1657      movem.l     (sp)+, d0-d7/a0-a6
+00162DB0  4E75                    1658      rts
+00162DB2                          1659      
+00162DB2                          1660      
+00162DB2                          1661      
+00162DB2                          1662      
+00162DB2                          1663      
+00162DB2                          1664      
+00162DB2                          1665  UpdateUserInput
+00162DB2  48E7 8080               1666      movem.l     d0/a0, -(sp)
+00162DB6                          1667      
+00162DB6  0CB9 00000000 00162588  1668      cmpi.l      #0, UserInputEvent
+00162DC0  6700 0060               1669      beq         .noEvent
+00162DC4                          1670  
+00162DC4  0CB9 00000001 0016258C  1671      cmpi.l      #1, UserInputWrong
+00162DCE  6700 0014               1672      beq         .noError
+00162DD2  203C 00005EFF           1673      move.l      #USER_INPUT_ERROR, d0
+00162DD8  23C0 00162584           1674      move.l      d0, UserInputTextColor
+00162DDE  4EF9 00162DF0           1675      jmp         .skipNoError    
+00162DE4                          1676  .noError
+00162DE4  203C 004CCC1D           1677      move.l      #USER_INPUT_CORRECT, d0
+00162DEA  23C0 00162584           1678      move.l      d0, UserInputTextColor
+00162DF0                          1679  
+00162DF0                          1680  .skipNoError
+00162DF0  2038 1DAC               1681      move.l      deltaTime, d0
+00162DF4  D1B9 00162590           1682      add.l       d0, UserInputElapsed
+00162DFA  0CB9 00000014 00162590  1683      cmp.l       #20, UserInputElapsed
+00162E04  6E00 0008               1684      bgt         .clearEvent
+00162E08  4EF9 00162E38           1685      jmp         .returnBack
+00162E0E                          1686      
+00162E0E                          1687  .clearEvent
+00162E0E  23FC 00000000 00162588  1688      move.l      #0, UserInputEvent
+00162E18  41F9 00163286           1689      lea         InputUserField, a0
+00162E1E  30BC 7B00               1690      move.w      #$7B00, (a0)
+00162E22                          1691  .noEvent
+00162E22  203C 00FAF81A           1692      move.l      #USER_INPUT_COLOR, d0
+00162E28  23C0 00162584           1693      move.l      d0, UserInputTextColor
+00162E2E  23FC 00000000 0016258C  1694      move.l      #0, UserInputWrong
+00162E38                          1695  
+00162E38                          1696  .returnBack
+00162E38  4CDF 0101               1697      movem.l     (sp)+, d0/a0
+00162E3C  4E75                    1698      rts
+00162E3E                          1699      
+00162E3E                          1700     
+00162E3E                          1701  
+00162E3E                          1702  
+00162E3E                          1703   
+00162E3E                          1704      
+00162E3E                          1705  DrawUserInput
+00162E3E  48E7 F800               1706      movem.l      d0-d4, -(sp)     ; saving registers that are being used in the subroutine
+00162E42                          1707  
+00162E42  223C 00525756           1708      move.l      #$00525756, d1
+00162E48                          1709      ;move.l      #$0036332e, d1
+00162E48  7050                    1710      move.l      #SET_PEN_COLOR, d0         ; setting pen color
+00162E4A  4E4F                    1711      trap        #15
+00162E4C  7051                    1712      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+00162E4E  4E4F                    1713      trap        #15
+00162E50                          1714      
+00162E50                          1715      * draw rectangle
+00162E50  7057                    1716      move.l      #DRAW_RECT, d0
+00162E52  2239 00162574           1717      move.l      UserInputBG_X1, d1
+00162E58  2439 00162578           1718      move.l      UserInputBG_Y1, d2
+00162E5E  2639 0016257C           1719      move.l      UserInputBG_X2, d3
+00162E64  2839 00162580           1720      move.l      UserInputBG_Y2, d4
+00162E6A  4E4F                    1721      trap        #15
+00162E6C                          1722  
+00162E6C                          1723      *---- finished drawing bg for input field
+00162E6C                          1724      
+00162E6C  41F9 00163286           1725      lea         InputUserField, a0
+00162E72  2F08                    1726      move.l      a0, -(sp)     ; number
+00162E74                          1727  ;    move.l      #$004ccc1d, -(sp)     ; color
+00162E74  2F39 00162584           1728      move.l      UserInputTextColor, -(sp)
+00162E7A  2F39 00162570           1729      move.l      UserInputField_Y, -(sp)       ; screen y
+00162E80  2F39 0016256C           1730      move.l      UserInputField_X, -(sp)       ; screen x
+00162E86  4EB8 14E8               1731      jsr         DrawString
+00162E8A  DFFC 00000010           1732      add.l       #16, sp          ; deleting data used by subroutine to avoid memory leak
+00162E90                          1733      
+00162E90  4CDF 001F               1734      movem.l     (sp)+, d0-d4
+00162E94  4E75                    1735      rts
+00162E96                          1736  
+00162E96                          1737  
+00162E96                          1738  
+00162E96                          1739  
+00162E96                          1740  
+00162E96                          1741  DrawHealth
+00162E96  48E7 F800               1742      movem.l      d0-d4, -(sp)     ; saving registers that are being used in the subroutine
+00162E9A                          1743  
+00162E9A                          1744      ;move.l      #$00029a51, d1
+00162E9A  223C 00005EFF           1745      move.l      #$00005eff, d1
+00162EA0  7050                    1746      move.l      #SET_PEN_COLOR, d0         ; setting pen color
+00162EA2  4E4F                    1747      trap        #15
+00162EA4  7051                    1748      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+00162EA6  4E4F                    1749      trap        #15
+00162EA8                          1750      
+00162EA8                          1751      * draw rectangle
+00162EA8  7057                    1752      move.l      #DRAW_RECT, d0
+00162EAA  2239 001625A4           1753      move.l      HealthBG_X1, d1
+00162EB0  2439 001625A8           1754      move.l      HealthBG_Y1, d2
+00162EB6  2639 001625AC           1755      move.l      HealthBG_X2, d3
+00162EBC  2839 001625B0           1756      move.l      HealthBG_Y2, d4
+00162EC2  4E4F                    1757      trap        #15
+00162EC4                          1758  
+00162EC4                          1759      *---- finished drawing bg for input field
+00162EC4  0CB9 00000001 0016278A  1760      cmp.l       #GAME_SCREEN, GameState
+00162ECE  6600 004E               1761      bne         .returnBack
+00162ED2                          1762      
+00162ED2  41F9 00162594           1763      lea         HealthLabel, a0
+00162ED8  2F08                    1764      move.l      a0, -(sp)     ; number
+00162EDA                          1765  ;    move.l      #$00014c19, -(sp)     ; color
+00162EDA  2F3C 00B2E4FF           1766      move.l      #$00b2e4ff, -(sp)
+00162EE0  2F39 001625A0           1767      move.l      HealthLabel_Y, -(sp)       ; screen y
+00162EE6  2F39 0016259C           1768      move.l      HealthLabel_X, -(sp)       ; screen x
+00162EEC  4EB8 14E8               1769      jsr         DrawString
+00162EF0  DFFC 00000010           1770      add.l       #16, sp          ; deleting data used by subroutine to avoid memory leak
+00162EF6                          1771      
+00162EF6                          1772      
+00162EF6                          1773      * Order in which stack contains information is
+00162EF6                          1774      * x - Position on screen (long)
+00162EF6                          1775      * y - Position on screen (long)
+00162EF6                          1776      * color - color of the digit
+00162EF6                          1777      * number - number to be drawn
+00162EF6                          1778      * Since stack is first in last out the data has to be pushed in reverse order
+00162EF6  2F3C 00000002           1779      move.l      #2, -(sp)
+00162EFC  2F39 001625BC           1780      move.l      HealthCount, -(sp)     ; number
+00162F02                          1781      ;move.l      #$00014c19, -(sp)     ; color
+00162F02  2F3C 00B2E4FF           1782      move.l      #$00b2e4ff, -(sp)     ; color
+00162F08  2F39 001625B8           1783      move.l      HealthNumber_Y, -(sp)       ; screen y
+00162F0E  2F39 001625B4           1784      move.l      HealthNumber_X, -(sp)       ; screen x
+00162F14  4EB8 12D0               1785      jsr         DrawDigits
+00162F18  DFFC 00000014           1786      add.l       #20, sp          ; deleting data used by subroutine to avoid memory leak
+00162F1E                          1787      
+00162F1E                          1788  .returnBack
+00162F1E  4CDF 001F               1789      movem.l     (sp)+, d0-d4
+00162F22  4E75                    1790      rts
+00162F24                          1791  
+00162F24                          1792  
+00162F24                          1793  
+00162F24                          1794  
+00162F24                          1795  
+00162F24                          1796  
+00162F24                          1797  DrawScore
+00162F24  48E7 F800               1798      movem.l      d0-d4, -(sp)     ; saving registers that are being used in the subroutine
+00162F28                          1799  
+00162F28  223C 009D9807           1800      move.l      #$009d9807, d1
+00162F2E  7050                    1801      move.l      #SET_PEN_COLOR, d0         ; setting pen color
+00162F30  4E4F                    1802      trap        #15
+00162F32  7051                    1803      move.l      #SET_FILL_COLOR, d0         ; setting fill color
+00162F34  4E4F                    1804      trap        #15
+00162F36                          1805      
+00162F36                          1806      * draw rectangle
+00162F36  7057                    1807      move.l      #DRAW_RECT, d0
+00162F38  2239 001625CE           1808      move.l      ScoreBG_X1, d1
+00162F3E  2439 001625D2           1809      move.l      ScoreBG_Y1, d2
+00162F44  2639 001625D6           1810      move.l      ScoreBG_X2, d3
+00162F4A  2839 001625DA           1811      move.l      ScoreBG_Y2, d4
+00162F50  4E4F                    1812      trap        #15
+00162F52                          1813  
+00162F52                          1814      *---- finished drawing bg for input field
+00162F52  0CB9 00000001 0016278A  1815      cmp.l       #GAME_SCREEN, GameState
+00162F5C  6600 004E               1816      bne         .returnBack
+00162F60                          1817      
+00162F60  41F9 001625C0           1818      lea         ScoreLabel, a0
+00162F66  2F08                    1819      move.l      a0, -(sp)     ; string
+00162F68                          1820  ;    move.l      #$004ccc1d, -(sp)     ; color
+00162F68  2F3C 004C4100           1821      move.l      #$004c4100, -(sp)
+00162F6E  2F39 001625CA           1822      move.l      ScoreLabel_Y, -(sp)       ; screen y
+00162F74  2F39 001625C6           1823      move.l      ScoreLabel_X, -(sp)       ; screen x
+00162F7A  4EB8 14E8               1824      jsr         DrawString
+00162F7E  DFFC 00000010           1825      add.l       #16, sp                 ; deleting data used by subroutine to avoid memory leak
+00162F84                          1826      
+00162F84                          1827      
+00162F84                          1828      * Order in which stack contains information is
+00162F84                          1829      * x - Position on screen (long)
+00162F84                          1830      * y - Position on screen (long)
+00162F84                          1831      * color - color of the digit
+00162F84                          1832      * number - number to be drawn
+00162F84                          1833      * Since stack is first in last out the data has to be pushed in reverse order
+00162F84  2F3C 00000003           1834      move.l      #3, -(sp)
+00162F8A  2F39 001625E6           1835      move.l      ScoreCount, -(sp)     ; number
+00162F90  2F3C 004C4100           1836      move.l      #$004c4100, -(sp)     ; color
+00162F96  2F39 001625E2           1837      move.l      ScoreNumber_Y, -(sp)       ; screen y
+00162F9C  2F39 001625DE           1838      move.l      ScoreNumber_X, -(sp)       ; screen x
+00162FA2  4EB8 12D0               1839      jsr         DrawDigits
+00162FA6  DFFC 00000014           1840      add.l       #20, sp          ; deleting data used by subroutine to avoid memory leak
+00162FAC                          1841  
+00162FAC                          1842  .returnBack
+00162FAC  4CDF 001F               1843      movem.l     (sp)+, d0-d4
+00162FB0  4E75                    1844      rts
+00162FB2                          1845  
+00162FB2                          1846  
+00162FB2                          1847  
+00162FB2                          1848  
+00162FB2                          1849  
+00162FB2                          1850  
+00162FB2                          1851  
+00162FB2                          1852      * Subroutines
+00162FB2                          1853  ProcessInput
+00162FB2  48E7 C000               1854      movem.l     d0-d1, -(sp)     ; saving registers that are being used in the subroutine
+00162FB6  0CB9 00000001 00162588  1855      cmpi.l      #1, UserInputEvent
+00162FC0  6700 008E               1856      beq         .noInput
+00162FC4                          1857      
+00162FC4  4281                    1858      clr.l       d1
+00162FC6  103C 0013               1859      move.b      #GET_USER_INPUT_COMMAND, d0
+00162FCA  4E4F                    1860      trap        #15
+00162FCC  0281 000000FF           1861      andi.l      #$FF, d1                        ; gets the last pressed key
+00162FD2                          1862      
+00162FD2                          1863      * check if last key pressed and current key pressed are different
+00162FD2                          1864      * when keys are pressed fast, next key is pressed before the previous key
+00162FD2                          1865      * is released. so check if the previous key pressed is not same ans current
+00162FD2                          1866      * key pressed then process the input
+00162FD2  B2B8 1EA0               1867      cmp.l       LastKeyPressed, d1
+00162FD6  6700 0008               1868      beq         .dontProcess
+00162FDA  11FC 0001 1E9F          1869      move.b      #1, HAVE_HAD_NO_INPUT
+00162FE0                          1870  .dontProcess
+00162FE0  21C1 1EA0               1871      move.l      d1, LastKeyPressed              ; saving last pressed key
+00162FE4                          1872      
+00162FE4                          1873      * check if the last pressed key is still being pressed
+00162FE4  103C 0013               1874      move.b      #GET_USER_INPUT_COMMAND, d0
+00162FE8  4E4F                    1875      trap        #15
+00162FEA  0281 000000FF           1876      andi.l      #$FF, d1
+00162FF0  6700 005E               1877      beq         .noInput
+00162FF4                          1878      
+00162FF4                          1879      * if last pressed key is still being pressed
+00162FF4  2238 1EA0               1880      move.l      LastKeyPressed, d1
+00162FF8                          1881      
+00162FF8  1038 1E9F               1882      move.b      HAVE_HAD_NO_INPUT, d0
+00162FFC  6700 0058               1883      beq         .skipNoInput
+00163000  11FC 0000 1E9F          1884      move.b      #0, HAVE_HAD_NO_INPUT
+00163006                          1885          
+00163006  B2BC 00000008           1886      cmp.l       #BACKSPACE_KEYCODE, d1
+0016300C  6700 0024               1887      beq         .backspaceInput
+00163010                          1888  
+00163010  B2BC 0000000D           1889      cmp.l       #ENTER_KEYCODE, d1
+00163016  6700 0024               1890      beq         .enterInput
+0016301A                          1891  
+0016301A                          1892      * checking if input is in range of a-z
+0016301A  B2BC 00000041           1893      cmp.l       #A_KEYCODE, d1
+00163020  6D00 0034               1894      blt         .skipNoInput
+00163024                          1895      
+00163024  B2BC 0000005A           1896      cmp.l       #Z_KEYCODE, d1
+0016302A  6E00 002A               1897      bgt         .skipNoInput
+0016302E                          1898      
+0016302E                          1899      * if >= a && <= z keycode is alhpabet
+0016302E  6000 0016               1900      bra         .alphabetInput
+00163032                          1901      
+00163032                          1902  .backspaceInput
+00163032  4EB9 00163252           1903      jsr         BackspacePressed
+00163038  6000 001C               1904      bra         .skipNoInput
+0016303C                          1905  
+0016303C                          1906  .enterInput
+0016303C  4EB9 001630B2           1907      jsr         EnterPressed
+00163042  6000 0012               1908      bra         .skipNoInput
+00163046                          1909      
+00163046                          1910  .alphabetInput
+00163046  4EB9 0016305C           1911      jsr         AlphabetPressed
+0016304C  6000 0008               1912      bra         .skipNoInput
+00163050                          1913      
+00163050                          1914  .noInput
+00163050  11FC 0001 1E9F          1915      move.b      #1, HAVE_HAD_NO_INPUT
+00163056                          1916  .skipNoInput
+00163056                          1917  
+00163056  4CDF 0003               1918      movem.l      (sp)+, d0-d1           ; reloading registers
+0016305A  4E75                    1919      rts
+0016305C                          1920      
+0016305C                          1921      
+0016305C                          1922      
+0016305C                          1923      
+0016305C                          1924      
+0016305C                          1925      
+0016305C                          1926      
+0016305C                          1927  AlphabetPressed
+0016305C                          1928      * calling string length to know the length of user input string
+0016305C                          1929      * so that the letter entered can be added at the end of the string
+0016305C                          1930      
+0016305C                          1931      * StringLength takes a6 and d4 as inputs so saving the registers
+0016305C                          1932      * before calling the function
+0016305C  2F0E                    1933      move.l          a6, -(sp)
+0016305E  2F04                    1934      move.l          d4, -(sp)
+00163060                          1935  
+00163060  4DF9 00163286           1936      lea             InputUserField, a6
+00163066  4EB8 1142               1937      jsr             StringLength
+0016306A                          1938      
+0016306A  0C84 00000015           1939      cmpi.l          #21, d4
+00163070  6700 0028               1940      beq             .returnBack             ; limiting the input to 20 characters
+00163074                          1941      
+00163074  4DF9 00163286           1942      lea             InputUserField, a6      ; StringLength will trash the a6 register so reinitializing a6
+0016307A                          1943      
+0016307A  2238 1EA0               1944      move.l          LastKeyPressed, d1
+0016307E                          1945      * ascii value of a is 97 but keycode is 65 so adding 32 to convert keycode to ascii
+0016307E  0681 00000020           1946      addi.l          #32, d1
+00163084                          1947      
+00163084  5384                    1948      subi.l          #1, d4                  ; last letter will be '_' so substract length by 1
+00163086  1D81 4000               1949      move.b          d1, (a6, d4)
+0016308A  5284                    1950      addi.l          #1, d4
+0016308C  1DBC 007B 4000          1951      move.b          #$7B, (a6, d4)            ; adding a '_' at end of the string
+00163092  5284                    1952      addi.l          #1, d4
+00163094  1DBC 0000 4000          1953      move.b          #$0, (a6, d4)
+0016309A                          1954      
+0016309A                          1955  .returnBack
+0016309A                          1956      * restoring the registers back
+0016309A  281F                    1957      move.l         (sp)+, d4
+0016309C  2C5F                    1958      move.l         (sp)+, a6
+0016309E  4E75                    1959      rts
+001630A0                          1960     
+001630A0                          1961  
+001630A0                          1962  
+001630A0                          1963  
+001630A0                          1964  
+001630A0                          1965  
+001630A0                          1966  
+001630A0                          1967  StartGame
+001630A0  23FC 00000001 0016278A  1968      move.l      #GAME_SCREEN, GameState
+001630AA  4E75                    1969      rts
+001630AC                          1970  
+001630AC                          1971  
+001630AC                          1972  
+001630AC                          1973  
+001630AC                          1974  
+001630AC                          1975  ExitGame
+001630AC  7009                    1976      move.l      #EXIT_SIMULATOR, d0
+001630AE  4E4F                    1977      trap        #15
+001630B0  4E75                    1978      rts
+001630B2                          1979  
+001630B2                          1980  
+001630B2                          1981  
+001630B2                          1982  
+001630B2                          1983  
+001630B2                          1984   
+001630B2                          1985  EnterPressed
+001630B2  48E7 FFFE               1986      movem.l     d0-d7/a0-a6, -(sp)
+001630B6                          1987      
+001630B6  23FC 00000001 00162588  1988      move.l      #1, UserInputEvent
+001630C0  23FC 00000000 00162590  1989      move.l      #0, UserInputElapsed
+001630CA                          1990      
+001630CA  0CB9 00000001 0016278A  1991      cmp.l       #GAME_SCREEN, GameState
+001630D4  6700 00B6               1992      beq         .gameInput
+001630D8                          1993      *------- if not game input 
+001630D8                          1994      *StartText
+001630D8                          1995      
+001630D8                          1996      * removing the trailing '_' from user input field
+001630D8  4DF9 00163286           1997      lea         InputUserField, a6
+001630DE  4EB8 1142               1998      jsr         StringLength
+001630E2  4DF9 00163286           1999      lea         InputUserField, a6
+001630E8  5384                    2000      subi.l      #1, d4    
+001630EA  1DBC 0000 4000          2001      move.b      #$0, (a6, d4)
+001630F0                          2002      
+001630F0                          2003      
+001630F0                          2004      *----------- start
+001630F0  4BF8 1E84               2005      lea         StartText, a5
+001630F4  2F0E                    2006      move.l      a6, -(sp)     ; string
+001630F6  2F0D                    2007      move.l      a5, -(sp)
+001630F8  4EB8 1154               2008      jsr         StringCompare
+001630FC  508F                    2009      add.l       #8, sp    
+001630FE                          2010      * if d0 == 1 equal string
+001630FE  23C0 0016258C           2011      move.l      d0, UserInputWrong
+00163104  0C80 00000001           2012      cmpi.l      #1, d0
+0016310A  6600 000E               2013      bne         .checkExit
+0016310E  4EB9 001630A0           2014      jsr         StartGame
+00163114  4EF9 00163168           2015      jmp         .skipCmd
+0016311A                          2016  
+0016311A                          2017  .checkExit
+0016311A                          2018      *----------- exit
+0016311A  4BF8 1E8A               2019      lea         ExitText, a5
+0016311E  2F0E                    2020      move.l      a6, -(sp)     ; string
+00163120  2F0D                    2021      move.l      a5, -(sp)
+00163122  4EB8 1154               2022      jsr         StringCompare
+00163126  508F                    2023      add.l       #8, sp
+00163128                          2024      * if d0 == 1 equal string
+00163128  23C0 0016258C           2025      move.l      d0, UserInputWrong
+0016312E  0C80 00000001           2026      cmpi.l      #1, d0
+00163134  6600 000E               2027      bne         .checkRestart
+00163138  4EB9 001630AC           2028      jsr         ExitGame
+0016313E  4EF9 00163168           2029      jmp         .skipCmd
+00163144                          2030  
+00163144                          2031  .checkRestart
+00163144                          2032      *----------- RestartGame
+00163144  4BF8 1E8F               2033      lea         RestartText, a5
+00163148  2F0E                    2034      move.l      a6, -(sp)     ; string
+0016314A  2F0D                    2035      move.l      a5, -(sp)
+0016314C  4EB8 1154               2036      jsr         StringCompare
+00163150  508F                    2037      add.l       #8, sp
+00163152                          2038      * if d0 == 1 equal string
+00163152  23C0 0016258C           2039      move.l      d0, UserInputWrong
+00163158  0C80 00000001           2040      cmpi.l      #1, d0
+0016315E  6600 0008               2041      bne         .skipCmd
+00163162  4EB9 00162B00           2042      jsr         RestartGame
+00163168                          2043  ;    jmp         .skipCmd
+00163168                          2044  
+00163168                          2045  .skipCmd
+00163168                          2046      * adding the trailing '_' to user input field    
+00163168  2C7C 00163286           2047      move.l      #InputUserField, a6
+0016316E  4EB8 1142               2048      jsr         StringLength
+00163172  2C7C 00163286           2049      move.l      #InputUserField, a6
+00163178                          2050  
+00163178  1DBC 007B 4000          2051      move.b      #$7B, (a6, d4)            ; adding a '_' at end of the string
+0016317E  5284                    2052      addi.l      #1, d4
+00163180  1DBC 0000 4000          2053      move.b      #$0, (a6, d4)
+00163186                          2054      
+00163186  4EF9 0016324C           2055      jmp         .exitLoop
+0016318C                          2056  .gameInput
+0016318C  2239 001625EE           2057      move.l      ChallengeWordCount, d1          ; loop counter
+00163192  41F9 00162642           2058      lea         ChallengeWord_Addr, a0
+00163198  43F9 001625F2           2059      lea         ChallengeWord_Draw, a1
+0016319E                          2060      
+0016319E                          2061  .parsingLoop
+0016319E  2401                    2062      move.l      d1, d2
+001631A0  5382                    2063      subi.l      #1, d2
+001631A2  E58A                    2064      lsl.l       #2, d2
+001631A4                          2065      
+001631A4                          2066      * check only if the word is being shown on the screen
+001631A4  2031 2000               2067      move.l      (a1, d2), d0
+001631A8  6700 0054               2068      beq         .skipIteration
+001631AC                          2069      
+001631AC  4DF9 00163286           2070      lea         InputUserField, a6
+001631B2                          2071      * removing the trailing '_' from user input field
+001631B2  4EB8 1142               2072      jsr         StringLength
+001631B6  4DF9 00163286           2073      lea         InputUserField, a6
+001631BC  5384                    2074      subi.l      #1, d4    
+001631BE  1DBC 0000 4000          2075      move.b      #$0, (a6, d4)
+001631C4                          2076  
+001631C4                          2077      
+001631C4  2F0E                    2078      move.l      a6, -(sp)     ; string
+001631C6  2F30 2000               2079      move.l      (a0, d2), -(sp)
+001631CA  4EB8 1154               2080      jsr         StringCompare
+001631CE  508F                    2081      add.l       #8, sp
+001631D0                          2082      
+001631D0                          2083      * adding the trailing '_' to user input field    
+001631D0  2C7C 00163286           2084      move.l      #InputUserField, a6
+001631D6  4EB8 1142               2085      jsr         StringLength
+001631DA  2C7C 00163286           2086      move.l      #InputUserField, a6
+001631E0                          2087  
+001631E0  1DBC 007B 4000          2088      move.b      #$7B, (a6, d4)            ; adding a '_' at end of the string
+001631E6  5284                    2089      addi.l      #1, d4
+001631E8  1DBC 0000 4000          2090      move.b      #$0, (a6, d4)
+001631EE                          2091      
+001631EE                          2092      * if d0 == 1 equal string
+001631EE  23C0 0016258C           2093      move.l      d0, UserInputWrong
+001631F4  0C80 00000001           2094      cmpi.l      #1, d0
+001631FA  6700 0014               2095      beq         .correctWord
+001631FE                          2096      
+001631FE                          2097  .skipIteration
+001631FE                          2098      * looping condition
+001631FE  5381                    2099      subi.l      #1, d1
+00163200  669C                    2100      bne         .parsingLoop
+00163202                          2101      
+00163202  43F8 1E00               2102      lea         WrongEffect, a1
+00163206  7049                    2103      move.l      #PLAY_SOUND, d0
+00163208  4E4F                    2104      trap        #15
+0016320A                          2105      
+0016320A  4EF9 0016324C           2106      jmp         .exitLoop
+00163210                          2107  
+00163210                          2108  .correctWord
+00163210  2F02                    2109      move.l      d2, -(sp)
+00163212  4EB9 00162D3C           2110      jsr         ResetWord
+00163218  588F                    2111      add.l       #4, sp
+0016321A                          2112      
+0016321A  2039 001625E6           2113      move.l      ScoreCount, d0
+00163220  0680 0000000A           2114      add.l       #10, d0
+00163226  23C0 001625E6           2115      move.l      d0, ScoreCount
+0016322C                          2116      
+0016322C  80FC 0032               2117      divu        #50, d0
+00163230  C0BC 0000FFFF           2118      and.l       #$0000FFFF, d0
+00163236  5280                    2119      add.l       #1, d0
+00163238  23C0 001625EE           2120      move.l      d0, ChallengeWordCount
+0016323E                          2121      
+0016323E  43F8 1DF0               2122      lea         BlopEffect, a1
+00163242  7049                    2123      move.l      #PLAY_SOUND, d0
+00163244  4E4F                    2124      trap        #15
+00163246                          2125      
+00163246  4EB9 0016279A           2126      jsr         UpdateLevelIndicator
+0016324C                          2127  .exitLoop
+0016324C  4CDF 7FFF               2128      movem.l     (sp)+, d0-d7/a0-a6
+00163250  4E75                    2129      rts
+00163252                          2130  
+00163252                          2131  
+00163252                          2132  
+00163252                          2133  
+00163252                          2134  
+00163252                          2135  
+00163252                          2136  
+00163252                          2137  BackspacePressed
+00163252  2F0E                    2138      move.l          a6, -(sp)
+00163254  2F04                    2139      move.l          d4, -(sp)
+00163256                          2140      
+00163256  4DF9 00163286           2141      lea             InputUserField, a6
+0016325C  4EB8 1142               2142      jsr             StringLength
+00163260                          2143      
+00163260  0C84 00000001           2144      cmpi.l          #1, d4                  ; if length of string is 1 it means there is no data in the string
+00163266  6700 0018               2145      beq             .skipSubroutine
+0016326A                          2146      
+0016326A  4DF9 00163286           2147      lea             InputUserField, a6      ; StringLength will trash the a6 register so reinitializing a6
+00163270                          2148  
+00163270  5384                    2149      subi.l          #1, d4    
+00163272  1DBC 0000 4000          2150      move.b          #$0, (a6, d4)
+00163278  5384                    2151      subi.l          #1, d4
+0016327A  1DBC 007B 4000          2152      move.b          #$7B, (a6, d4)
+00163280                          2153      
+00163280                          2154  .skipSubroutine
+00163280  281F                    2155      move.l         (sp)+, d4
+00163282  2C5F                    2156      move.l         (sp)+, a6
+00163284  4E75                    2157      rts
+00163286                          2158      
+00163286                          2159      
+00163286                          2160      
+00163286                          2161      
+00163286                          2162      
+00163286                          2163      
+00163286                          2164      * since this is a variable with dynamic memory size, its declared at end of program
+00163286= 7B 00                   2165  InputUserField      dc.b        $7B,0
+00163288                          2166      END    START        ; last line of source
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+ALL_REGISTERS       7FFF
+ALPHABETPRESSED     16305C
+ALPHABETPRESSED:RETURNBACK  16309A
+ANIMATIONTIMER      162796
+A_KEYCODE           41
+BACKSPACEPRESSED    163252
+BACKSPACEPRESSED:SKIPSUBROUTINE  163280
+BACKSPACE_KEYCODE   8
+BGSPRITEFILE        1EA4
+BLOPEFFECT          1DF0
+CANADDNEWWORD       162782
+CANADDTIMEELAPSED   162786
+CHALLENGEWORDCOUNT  1625EE
+CHALLENGEWORD_ACC   1625EA
+CHALLENGEWORD_ADDR  162642
+CHALLENGEWORD_DRAW  1625F2
+CHALLENGEWORD_SPEED  162692
+CHALLENGEWORD_X     1626E2
+CHALLENGEWORD_Y     162732
+CLEARCOMPUTERSCREEN  16282A
+CLEAROFFSET         1EA0
+COLOR_TABLE_SIZE    400
+CURRENTFRAMETIME    1DA8
+DELTATIME           1DAC
+DIGITALALPHABETMASKVALUE  1368
+DIGITALMASKVALUES   1238
+DRAWCHALLENGEWORDS  162C28
+DRAWCHALLENGEWORDS:PARSINGLOOP  162C4A
+DRAWCHALLENGEWORDS:SKIPITERATION  162C80
+DRAWDIGITS          12D0
+DRAWHEALTH          162E96
+DRAWHEALTH:RETURNBACK  162F1E
+DRAWSCORE           162F24
+DRAWSCORE:RETURNBACK  162FAC
+DRAWSPRITE          158A
+DRAWSTRING          14E8
+DRAWUSERINPUT       162E3E
+DRAW_RECT           57
+ENABLE_DOUBLE_BUFFER  5C
+ENDING_WORD_Y       26C000
+ENDOFBGSPRITEFILE   161BDC
+ENDOFLEVELINDICATOR  162564
+ENTERPRESSED        1630B2
+ENTERPRESSED:CHECKEXIT  16311A
+ENTERPRESSED:CHECKRESTART  163144
+ENTERPRESSED:CORRECTWORD  163210
+ENTERPRESSED:EXITLOOP  16324C
+ENTERPRESSED:GAMEINPUT  16318C
+ENTERPRESSED:PARSINGLOOP  16319E
+ENTERPRESSED:SKIPCMD  163168
+ENTERPRESSED:SKIPITERATION  1631FE
+ENTER_KEYCODE       D
+EXITGAME            1630AC
+EXITTEXT            1E8A
+EXIT_LABEL_X        244
+EXIT_LABEL_Y        23A
+EXIT_SIMULATOR      9
+FRAC_BITS           6
+GAMELOOP            10AE
+GAMELOOP:ENDOFSCREENS  112C
+GAMELOOP:GAME       110E
+GAMELOOP:GAMEOVERSCREEN  1126
+GAMELOOP:MENUSCREEN  1102
+GAMEOVERSCREEN      162980
+GAMEOVERSCREEN:NOTANIMATING  162A14
+GAMEOVERSCREEN:RETURNBACK  162AFA
+GAMEOVERSCREEN:SKIPDRAWING  162AE2
+GAMEOVERSCREEN:Y1NOTBORDER  1629EE
+GAMEOVERSCREEN:Y2NOTBORDER  162A0C
+GAMEOVERTEXT1       1E5A
+GAMEOVERTEXT2       1E72
+GAMESTATE           16278A
+GAME_OVER_SCREEN    2
+GAME_SCREEN         1
+GETNTHWORD          118E
+GETNTHWORD:PARSINGLOOP  11A0
+GETNTHWORD:RETURNBACK  11AE
+GETNTHWORD:SKIPINCREMENTCOUNTER  11AA
+GETRANDOMBYTEINTOD6  11D2
+GETRANDOMLONGINTOD6  1208
+GET_USER_INPUT_COMMAND  13
+GO_SCORE_BG_X1      26C
+GO_SCORE_BG_X2      3E8
+GO_SCORE_BG_Y1      FA
+GO_SCORE_BG_Y2      15E
+GO_SCORE_LABEL_X    27B
+GO_SCORE_LABEL_Y    11C
+GO_SCORE_NUMBER_X   384
+GO_SCORE_NUMBER_Y   11C
+HAVE_HAD_NO_INPUT   1E9F
+HEALTHBG_X1         1625A4
+HEALTHBG_X2         1625AC
+HEALTHBG_Y1         1625A8
+HEALTHBG_Y2         1625B0
+HEALTHCOUNT         1625BC
+HEALTHLABEL         162594
+HEALTHLABEL_X       16259C
+HEALTHLABEL_Y       1625A0
+HEALTHNUMBER_X      1625B4
+HEALTHNUMBER_Y      1625B8
+HORIZONTALLOOP      15E0
+HURTEFFECT          1E1E
+INITCHALLENGEWORDS  162BAA
+INITCHALLENGEWORDS:PARSINGLOOP  162BCE
+INITIAL_HEALTH      A
+INITIAL_SPEED       1
+INITIAL_WORD_Y      3C000
+INITTIMER           1DB0
+INPUTUSERFIELD      163286
+ISANIMATING         162792
+LASTKEYPRESSED      1EA0
+LED_16_GAP          2
+LED_16_HEIGHT       F
+LED_16_LINE_SPACING  6
+LED_16_POSITION_X1  13D8
+LED_16_POSITION_X2  1460
+LED_16_POSITION_Y1  141C
+LED_16_POSITION_Y2  14A4
+LED_16_WIDTH        A
+LED_LINE_SPACING    6
+LED_OFFSET          3
+LED_POSITION_X1     1260
+LED_POSITION_X2     1298
+LED_POSITION_Y1     127C
+LED_POSITION_Y2     12B4
+LED_SIZE            F
+LEVELINDICATOR      161BDC
+LEVELINDICATOR_X    162564
+LEVELINDICATOR_Y    162568
+LEVEL_INDICATOR_X   43
+LEVEL_INDICATOR_Y   26C
+LOADINGSTR          1E97
+MAINMENU            16285A
+MAINMENU:NOTANIMATING  1628EE
+MAINMENU:RETURNBACK  16297A
+MAINMENU:SKIPDRAWING  162962
+MAINMENU:Y1NOTBORDER  1628C8
+MAINMENU:Y2NOTBORDER  1628E6
+MAIN_MENU_SCREEN    0
+MAX_WORDS_ON_SCREEN  14
+NINC0               11E6
+NINC1               11EE
+OFFSET_TO_DIB_HEADER  E
+OFFSET_TO_GET_IMAGE_HEIGHT  16
+OFFSET_TO_GET_IMAGE_WIDTH  12
+OPENINGBG           1DE2
+PARSEMASKLOOP       1318
+PARSENUMBER         12FE
+PARSEWORD           151E
+PARSEWORD:PARSEMASKLOOP  1532
+PARSEWORD:PARSENEXTLETTER  157A
+PARSEWORD:RETURNBACK  1584
+PARSEWORD:SKIPDRAWING  1576
+PLAY_SOUND          49
+PREVFRAMETIME       1DA4
+PROCESSINPUT        162FB2
+PROCESSINPUT:ALPHABETINPUT  163046
+PROCESSINPUT:BACKSPACEINPUT  163032
+PROCESSINPUT:DONTPROCESS  162FE0
+PROCESSINPUT:ENTERINPUT  16303C
+PROCESSINPUT:NOINPUT  163050
+PROCESSINPUT:SKIPNOINPUT  163056
+RANDOMVAL           11B4
+RESETWORD           162D3C
+RESTARTGAME         162B00
+RESTARTTEXT         1E8F
+RESTART_LABEL_X     1F4
+RESTART_LABEL_Y     1F4
+SCOREBG_X1          1625CE
+SCOREBG_X2          1625D6
+SCOREBG_Y1          1625D2
+SCOREBG_Y2          1625DA
+SCORECOUNT          1625E6
+SCORELABEL          1625C0
+SCORELABEL_X        1625C6
+SCORELABEL_Y        1625CA
+SCORENUMBER_X       1625DE
+SCORENUMBER_Y       1625E2
+SEEDRANDOMNUMBER    11BC
+SET_FILL_COLOR      51
+SET_PEN_COLOR       50
+SET_SCREEN_SIZE     21
+SKIPDRAWING         1354
+SKIPSUBSTRACTIONPADDING  15D8
+STACK_CHUNK_HEIGHT  54
+STACK_CHUNK_WIDTH   50
+STACK_CHUNK_X       48
+STACK_CHUNK_Y       4C
+STACK_COLOR         48
+STACK_EOF_POINTER   5C
+STACK_FILE_POINTER  58
+STACK_LENGTH        50
+STACK_NUMBER        4C
+STACK_SCREEN_X      40
+STACK_SCREEN_Y      44
+START               1000
+STARTGAME           1630A0
+STARTING_WORD_X     12C
+STARTTEXT           1E84
+STRINGCOMPARE       1154
+STRINGCOMPARE:COMPARELOOP  1166
+STRINGCOMPARE:NOTEQUAL  1180
+STRINGCOMPARE:RETURNBACK  1188
+STRINGLENGTH        1142
+STRINGLENGTH:LENGTHLOOP  1144
+STRINGLENGTH:RETURNBACK  1152
+SWAP_BUFFER         5E
+SYSTEM_TIME         8
+TEMPRANDOMLONG      11B8
+TITLETEXT           1E2E
+TITLE_BG_X1         258
+TITLE_BG_X2         410
+TITLE_BG_Y1         FA
+TITLE_BG_Y2         15E
+TITLE_LABEL_X       267
+TITLE_LABEL_Y       11C
+TUTORIALELAPSED     16278E
+TUTORIALTEXT        1E3F
+TUTORIAL_TEXT_X     1D6
+TUTORIAL_TEXT_Y     1F4
+UPDATECHALLENGELEVEL  162B2C
+UPDATECHALLENGELEVEL:PARSELOOP2  162B80
+UPDATECHALLENGELEVEL:PARSINGLOOP  162B5C
+UPDATECHALLENGELEVEL:RETURNBACK  162BA4
+UPDATECHALLENGELEVEL:SKIPINCR  162B6A
+UPDATECHALLENGELEVEL:SKIPINCR2  162B9A
+UPDATECHALLENGEWORDS  162C8A
+UPDATECHALLENGEWORDS:PARSINGLOOP  162CA6
+UPDATECHALLENGEWORDS:RETURNBACK  162D36
+UPDATECHALLENGEWORDS:SKIPRESET  162D30
+UPDATELEVELINDICATOR  16279A
+UPDATETIMER         1DC2
+UPDATEUSERINPUT     162DB2
+UPDATEUSERINPUT:CLEAREVENT  162E0E
+UPDATEUSERINPUT:NOERROR  162DE4
+UPDATEUSERINPUT:NOEVENT  162E22
+UPDATEUSERINPUT:RETURNBACK  162E38
+UPDATEUSERINPUT:SKIPNOERROR  162DF0
+USERINPUTBG_X1      162574
+USERINPUTBG_X2      16257C
+USERINPUTBG_Y1      162578
+USERINPUTBG_Y2      162580
+USERINPUTELAPSED    162590
+USERINPUTEVENT      162588
+USERINPUTFIELD_X    16256C
+USERINPUTFIELD_Y    162570
+USERINPUTTEXTCOLOR  162584
+USERINPUTWRONG      16258C
+USER_INPUT_COLOR    FAF81A
+USER_INPUT_CORRECT  4CCC1D
+USER_INPUT_ERROR    5EFF
+VERTICALLOOP        15E0
+WORD_DICTIONARY     162C
+WRONGEFFECT         1E00
+Z_KEYCODE           5A
