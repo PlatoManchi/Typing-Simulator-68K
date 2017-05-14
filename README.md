@@ -11,8 +11,8 @@ Game contains:
 - Basic physica simulation - Gravity.
 - Fixed point arithmetic to calculate the floating point values.
 - Collision detection
-- Using 7-segment display to show score
-- Using 16 - segment display to show text on screen
+- Implemented 7-segment display style numbering to show score
+- Implemented 16 - segment display style text to show text on screen
 - Randomness
 
 ### Instructions:
