@@ -2,7 +2,7 @@
 
 As part of curriculum, this game is made in assembly language using Motorola 68000 instruction set.
 
-Video: (Youtube)
+Video: [Youtube video](https://www.youtube.com/watch?v=4n-k6NdmJ1E&list=PLcrSAed97hd5kSdeK-6Fmvh45OWx0myqz&index=2)
 
 Game contains:
 
